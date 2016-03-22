@@ -1,0 +1,125 @@
+
+#. Building
+
+One may build from the parent miniIO directory or within this directory.
+Either way, first edit the parent directory's Makefile.inc and set the
+correct compilers and flags for the system.  See the corresponding ../README
+file for more specifics.  To compile and link in this directory, simply execute
+"make".
+
+#. Running
+
+cartiso is an MPI program and thus requires an MPI launcher (mpirun, mpiexec,
+aprun, etc.).  It will look something like this;
+   mpirun -np N ./cartiso --tasks # # # --size # # # [optional_options]
+
+The "tasks" and "size" arguments are required.  The corresponding values for
+those arguments have certain constraints.  The meaning of those arguments, the
+constraints, and information about optional arguments are described in
+cartiso.c and are printed out when no options or bad options are provided to
+the cartiso executable.
+
+#. Adding an Output Module
+
+cartiso allows for the addition of custom output modules which allow the
+benchmarking/testing/profiling of alternate output methods.
+
+There are two types of output modules in cartiso: (1) full output and (2)
+isosurface output.  Full output writes out the entire Cartesian data arrays.
+Isosurface output writes out the triangles from the isosurface generation. 
+The PVTI and PVTP Output Modules are examples of each, respectively.  At a
+minimum, we assume the Output Module has (a) a header file with the function
+signature and (b) a source file with the function.
+The following is the process for adding an Output Module:
+
+    #.1. Add to I/O Modules section in Makefile
+
+Modules with no external dependences probably only require adding to OBJS, SRCS,
+and CFLAGS.  For example:
+OBJS += myoutputmodule.o     # Add my object file
+#    ^^ Note the "+="; Do NOT use =
+SRCS += myoutputmodule.c     # Add my source file
+CFLAGS += -DHAS_MYOUTPUT     # Add a define for conditional compilation
+
+If you have external dependences, such as I/O libraries like HDF5, NetCDF,
+ADIOS, etc., you can also update CFLAGS and LIBS to include those:
+CFLAGS += -I/path/to/library/include
+LIBS += -L/path/to/library/lib -lthelib
+
+    #.2. Add Includes to cartiso.c
+
+The section near the top of cartiso.c is marked with comments.  Add an #include
+directive for your include file, but wrapped in conditional compilation
+directives using the "-D..." flag that you created in the Makefile, e.g.:
+#ifdef HAS_MYOUPUT
+#  include "myoutputmodule.h"
+#endif
+
+    #.3. Recommended: Add Usage String to cartiso.c
+
+The section for usage strings for Output Modules is marked with comments.  It
+is recommended to provide command line options for your users to enable your
+output method and perhaps choose file names or other options.  Provide the
+usage documentation for those here.  As before, please add these with
+conditional compilation (#ifdef ...). 
+
+    #.4. Recommended: Add Variables to cartiso.c
+
+The section for variables for Output Modules is marked with comments.  You may
+or may not need any variables.  However, it is recommended to provide command
+line options for your users to enable your output method and perhaps choose
+file names or other options.  Variables needed to track this should be added
+here.  As before, please add these with conditional compilation (#ifdef ...).
+
+    #.5. Recommended: Add Command Line Options to cartiso.c
+
+The section in the command line parsing section for Output Modules is marked
+with comments.  It isn't required, but it is recommended to provide command
+line options for your users to enable your output method and perhaps choose
+file names or other options.  As before, please add these with conditional
+compilation (#ifdef ...).  Follow the approach used to process other command 
+line parameters; in particular, use a complete "else if" block, and increment
+the "a" variable if you process additional parameters after your initial one.
+Don't forget the conditional compilation directives.
+
+    #.6. Optional: Add Initialization to cartiso.c
+
+The section for initialization is marked with comments.  This may not be
+necessary for all Output modules.  However some modules may require the
+initialization of an external library, for example.  This is the most
+reasonable location to perform the initialization, because command line options
+have been parsed, MPI has been initialized, and the grid has been set up.  If
+you need rare, special initialization, e.g., before MPI is initialized, please
+comment your addition adequately.  Don't forget the conditional compilation
+directives, wherever you initialize.
+
+    #.7. Add FULL OUTPUT Per Time Step Function Calls to cartiso.c
+
+This is for Full Output modules that write out the entire data array only.  The
+section for Full Output "per time step" function calls is commented.  This is
+where the real work happens.  It is expected that after every time step your
+Output Module will write out the updated data.  Don't forget the conditional 
+compilation directives.
+
+
+    #.8. Add ISOSURFACE OUTPUT Per Time Step Function Calls to cartiso.c
+
+This is for Isosurface Output modules that write out the isosurface only.  The
+section for Isosurface Output "per time step" function calls is commented. 
+This is where the real work happens.  It is expected that after every time step
+your Output Module will write out the updated isosurface.  Don't forget the
+conditional compilation directives.
+
+    #.9. Optional: Add Cleanup to cartiso.c
+
+The section for cleanup is marked with comments.  This may not be necessary for
+all Output Modules.  However, some Modules may require the cleanup/close-out/
+finalization of an external library, for example.  This is the most reasonable
+location for the cleanup, as it occurs before the cleanup of the rest of code.
+Don't forget the conditional compilation directives.
+
+    #.10. Update Make Dependencies
+
+Adding your source filenames to the Makefile's SRCS means that a rerun of "make 
+depend" will update the Makefile with your new dependencies.
+

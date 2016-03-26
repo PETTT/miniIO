@@ -68,7 +68,7 @@ void prime_split(int n, int *n1, int *n2)
         *n1 = 1;  *n2 = 1;
         for(j = 0; j < i; ++j)  *n1 *= v[j];
         for(j = i; j < vpos; ++j) *n2 *= v[j];
-        if(*n1 > *n2)  break;    /* Stop when 2nd factor is greater */
+        if(*n1 >= *n2)  break;    /* Stop when 2nd factor is greater or equal */
         p1 = *n1;  p2 = *n2;   /* Otherwise, set previous factors */
     }
     if(*n1 - *n2 > p2 - p1) {   /* Whichever set of factors is closest together wins */
@@ -78,19 +78,49 @@ void prime_split(int n, int *n1, int *n2)
     free(v);
 
     assert(orign == *n1 * *n2);
+
+    if(*n2 > *n1) {   /* Make sure n1 >= n2, else swap */
+        p1 = *n1;   *n1 = *n2;   *n2 = p1;
+    }
+}
+
+/* Signum function */
+float sgn(float x)
+{
+    return copysignf(1.f, x);
+}
+
+/* Superquadric ellipsoidal "c" function */
+float sqc(float w, float m)
+{
+    return sgn(cosf(w)) * powf(fabsf(cosf(w)), m);
+}
+
+/* Superquadric ellipsoidal "s" function */
+float sqs(float w, float m)
+{
+    return sgn(sinf(w)) * powf(fabsf(sinf(w)), m);
 }
 
 
 int main(int argc, char **argv)
 {
-    int i, a;
+    int a;
     uint64_t npoints = 0;    /* Total number of points */
     uint64_t nptstask = 0;     /* Number of point per task */
-    int ntheta, nphi, nlayer;    /* Points per task per spherical coord axis */
-    int thetaprocs, phiprocs;             /* Number of tasks on theta & phi respectively */
+    int nu, nv, nlyr;    /* Points per task per u,v,lyr spherical coord axis */
+    float du, dv;          /* delta's along u & v points */
+    float u0, u1, v0, v1;      /* Starting/ending points along u & v */
+    int i, j, k, ii;
+    float *xpts, *ypts, *zpts;    /* Grid points */
+    uint64_t nconns, *conns;      /* Number of grid connections & connection array */
+    float uround = 0.3f;        /* Superquadric roundness u parameter */
+    float vround = 0.3f;        /* Superquadric roundness v parameter */
 
     /* MPI vars */
     int rank, nprocs;
+    int uprocs, vprocs;      /* Number of tasks on u & v spherical axes respectively */
+    int urank, vrank;        /* 2D rank along u & v */
 
     /*## Add Output Modules' Variables Here ##*/
 
@@ -109,6 +139,9 @@ int main(int argc, char **argv)
         } else if(!strcasecmp(argv[a], "--pointspertask")) {
             nptstask = strtoull(argv[++a], NULL, 10);
             npoints = 0;
+        } else if(!strcasecmp(argv[a], "--roundness")) {
+            uround = atof(argv[++a]);
+            vround = atof(argv[++a]);
         }
 
         /*## Add Output Modules' Command Line Arguments Here ##*/
@@ -139,23 +172,59 @@ int main(int argc, char **argv)
     }
 
     /* Determine a volumetric spherical topology that meets # of points requested */
-    prime_split(nprocs, &thetaprocs, &phiprocs);   /* Split tasks across spherical axes */
+    prime_split(nprocs, &uprocs, &vprocs);   /* Split tasks across spherical axes */
     if(npoints)   /* split npoints among tasks */
         nptstask = npoints / nprocs;
-    ntheta = (int) ceil(cbrt(nptstask * thetaprocs * 2 / phiprocs));
-                  /* need thetaprocs/phiprocs proportional; want 2x ntheta's as layers */
-    nphi = ntheta * phiprocs / thetaprocs;
-    nlayer = ntheta / 2;
-    nptstask = (uint64_t)ntheta * nphi * nlayer;   /* nptstask won't be exactly as requested */
+    nu = (int) ceil(cbrt(nptstask * uprocs * 2 / vprocs));
+                  /* need uprocs/vprocs proportional; want 2x nu's as layers */
+    nv = nu * vprocs / uprocs;
+    nlyr = nu / 2;
+    nptstask = (uint64_t)nu * nv * nlyr;   /* nptstask won't be exactly as requested */
     npoints = nptstask * nprocs;
     if(rank == 0)  
         printf("Actual points: %llu, points per task: %llu\n"
-                "thetaprocs: %d, phiprocs: %d\n"
-                "ntheta: %d, nphi: %d, nlayer: %d\n", 
-                npoints, nptstask, thetaprocs, phiprocs, ntheta, nphi, nlayer); 
+                "uprocs: %d, vprocs: %d\n"
+                "nu: %d, nv: %d, nlyr: %d\n", 
+                npoints, nptstask, uprocs, vprocs, nu, nv, nlyr); 
 
+    /* Divide spherical topology tiles along u,v */
+    du = 2 * M_PI / uprocs / nu;
+    dv = M_PI / vprocs / nv;
+    urank = rank % uprocs;
+    vrank = rank / uprocs;
+    u0 = urank * du * nu - M_PI;   u1 = u0 + du * (nu-1);
+    v0 = vrank * dv * nv - M_PI/2;   v1 = v0 + dv * (nv-1);
+    /*DBG*/printf("%d: %f-%f, %f-%f, %f, %f\n", rank, u0, u1, v0, v1, du, dv);
+        
     /* Generate grid */
-    
+    xpts = (float *) malloc(nptstask*sizeof(float));
+    ypts = (float *) malloc(nptstask*sizeof(float));
+    zpts = (float *) malloc(nptstask*sizeof(float));
+    for(i = 0, ii = 0; i < nu; i++) {
+        float u = u0 + du*i;
+        for(j = 0; j < nv; j++, ii++) {
+            float v = v0 + dv*j;
+            xpts[ii] = 1.0 * sqc(v, vround) * sqc(u, uround);
+            ypts[ii] = 1.0 * sqc(v, vround) * sqs(u, uround);
+            zpts[ii] = 1.0 * sqs(v, vround);
+        }
+    }
+
+    /* DBG: write csv file in alternating series */
+    {
+        FILE *f;
+        int r;
+        for(r = 0; r < nprocs; ++r) {
+            if(r == rank) {
+                f = fopen("tstunstruct.csv", r==0 ? "wb" : "ab");
+                for(i = 0, ii = 0; i < nu; i++) 
+                    for(j = 0; j < nv; j++, ii++) 
+                        fprintf(f, "%f,%f,%f,%d\n", xpts[ii], ypts[ii], zpts[ii], r);
+                fclose(f);
+            }
+            MPI_Barrier(MPI_COMM_WORLD);
+        }
+    }
 
     /*## Add Output Modules' Initialization Here ##*/
 
@@ -173,6 +242,7 @@ int main(int argc, char **argv)
 
     /* Cleanup */
 
+    free(xpts);  free(ypts);  free(zpts);
     MPI_Finalize();
 
     return 0;

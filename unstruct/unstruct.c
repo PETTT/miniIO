@@ -200,13 +200,16 @@ int main(int argc, char **argv)
     xpts = (float *) malloc(nptstask*sizeof(float));
     ypts = (float *) malloc(nptstask*sizeof(float));
     zpts = (float *) malloc(nptstask*sizeof(float));
-    for(i = 0, ii = 0; i < nu; i++) {
-        float u = u0 + du*i;
-        for(j = 0; j < nv; j++, ii++) {
-            float v = v0 + dv*j;
-            xpts[ii] = 1.0 * sqc(v, vround) * sqc(u, uround);
-            ypts[ii] = 1.0 * sqc(v, vround) * sqs(u, uround);
-            zpts[ii] = 1.0 * sqs(v, vround);
+    for(k = 0, ii = 0; k < nlyr; k++) {
+        float w = 1.f + powf((float)k/(nlyr-1), 2.f) * 2.f;  /* layer w in [1,3] by squares */
+        for(i = 0; i < nu; i++) {
+            float u = u0 + du*i;
+            for(j = 0; j < nv; j++, ii++) {
+                float v = v0 + dv*j;
+                xpts[ii] = w * sqc(v, vround) * sqc(u, uround);
+                ypts[ii] = w * sqc(v, vround) * sqs(u, uround);
+                zpts[ii] = w * sqs(v, vround);
+            }
         }
     }
 
@@ -217,9 +220,10 @@ int main(int argc, char **argv)
         for(r = 0; r < nprocs; ++r) {
             if(r == rank) {
                 f = fopen("tstunstruct.csv", r==0 ? "wb" : "ab");
-                for(i = 0, ii = 0; i < nu; i++) 
-                    for(j = 0; j < nv; j++, ii++) 
-                        fprintf(f, "%f,%f,%f,%d\n", xpts[ii], ypts[ii], zpts[ii], r);
+                for(k = 0, ii = 0; k < nlyr; k++)
+                    for(i = 0; i < nu; i++) 
+                        for(j = 0; j < nv; j++, ii++) 
+                            fprintf(f, "%f,%f,%f,%d\n", xpts[ii], ypts[ii], zpts[ii], r);
                 fclose(f);
             }
             MPI_Barrier(MPI_COMM_WORLD);

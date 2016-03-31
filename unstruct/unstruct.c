@@ -111,9 +111,11 @@ int main(int argc, char **argv)
     int nu, nv, nlyr;    /* Points per task per u,v,lyr spherical coord axis */
     float du, dv;          /* delta's along u & v points */
     float u0, u1, v0, v1;      /* Starting/ending points along u & v */
-    int i, j, k, ii;
+    int i, j, k;
+    uint64_t ii;
     float *xpts, *ypts, *zpts;    /* Grid points */
-    uint64_t nconns, *conns;      /* Number of grid connections & connection array */
+    uint64_t nelems2, *conns2;      /* Number of grid triangles & connection array in 2D */
+    uint64_t nelems3, *conns3;      /* Number of triangular prisms & connection array */
     float uround = 0.3f;        /* Superquadric roundness u parameter */
     float vround = 0.3f;        /* Superquadric roundness v parameter */
 
@@ -192,11 +194,11 @@ int main(int argc, char **argv)
     dv = M_PI / vprocs / nv;
     urank = rank % uprocs;
     vrank = rank / uprocs;
-    u0 = urank * du * nu - M_PI;   u1 = u0 + du * (nu-1);
-    v0 = vrank * dv * nv - M_PI/2;   v1 = v0 + dv * (nv-1);
+    u0 = urank * du * nu - M_PI;   u1 = u0 + du * nu;   /* #points to be continuous across task */
+    v0 = vrank * dv * nv - M_PI/2;   v1 = v0 + dv * nv;
     /*DBG*/printf("%d: %f-%f, %f-%f, %f, %f\n", rank, u0, u1, v0, v1, du, dv);
         
-    /* Generate grid */
+    /* Generate grid points with superquadric */
     xpts = (float *) malloc(nptstask*sizeof(float));
     ypts = (float *) malloc(nptstask*sizeof(float));
     zpts = (float *) malloc(nptstask*sizeof(float));
@@ -210,6 +212,36 @@ int main(int argc, char **argv)
                 ypts[ii] = w * sqc(v, vround) * sqs(u, uround);
                 zpts[ii] = w * sqs(v, vround);
             }
+        }
+    }
+
+    /* Add surface connections, all are triangles */
+    nelems2 = (nu-1) * (nv-1) * 2;
+    conns2 = (uint64_t *) malloc(nelems2*3*sizeof(uint64_t));
+    for(i = 0, ii = 0; i < nu-1; i++) {
+        for(j = 0; j < nv-1; j++) {
+            uint64_t ndx = i * nv + j;
+            conns2[ii++] = ndx;
+            conns2[ii++] = ndx + nv + 1;
+            conns2[ii++] = ndx + nv;
+            conns2[ii++] = ndx;
+            conns2[ii++] = ndx + 1;
+            conns2[ii++] = ndx + nv + 1;
+        }
+    }
+
+    /* Add volume connections, all are triangular prisms extended from base 2D grid */
+    nelems3 = nelems2 * (nlyr-1);
+    conns3 = (uint64_t *) malloc(nelems3*6*sizeof(uint64_t));
+    for(k = 0, ii = 0; k < nlyr-1; k++) {
+        uint64_t euv, iuv, nuv = nu * nv * k;
+        for(euv = 0, iuv = 0; euv < nelems2; euv++) {
+            conns3[ii++] = conns2[iuv++];
+            conns3[ii++] = conns2[iuv++];
+            conns3[ii++] = conns2[iuv++];
+            conns3[ii++] = conns2[iuv++] + nuv;
+            conns3[ii++] = conns2[iuv++] + nuv;
+            conns3[ii++] = conns2[iuv++] + nuv;
         }
     }
 
@@ -247,6 +279,7 @@ int main(int argc, char **argv)
     /* Cleanup */
 
     free(xpts);  free(ypts);  free(zpts);
+    free(conns2);  free(conns3);
     MPI_Finalize();
 
     return 0;

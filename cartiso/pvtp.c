@@ -142,7 +142,7 @@ void writepvtp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
         if(xvals) {
             snprintf(line, fnstrmax, "        <DataArray type=\"%s\" Name=\"%s\" "
                      "NumberOfComponents=\"1\" "
-                     "format=\"appended\" offset=\"%llu\">\n", typestr, xname, offsets);
+                     "format=\"appended\" offset=\"%llu\"/>\n", typestr, xname, offsets);
             MPI_File_write(mf, line, strlen(line), MPI_CHAR, &mstat);
             offsets += ntris*3*sizeof(float)+sizeof(uint64_t);   /* Add size of xdata array */
         }

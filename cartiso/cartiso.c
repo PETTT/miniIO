@@ -301,7 +301,7 @@ int main(int argc, char **argv)
         z0 = (float)(sfc0k + 1) / (knp + 1);
     }
     /* Set up isosurfacing structure */
-    isoinit(&iso, xs, ys, zs, deltax, deltay, deltaz, cni, cnj, cnk, 0);
+    isoinit(&iso, xs, ys, zs, deltax, deltay, deltaz, cni, cnj, cnk, 1);
     /* Set up osn */
     open_simplex_noise(12345, &osn);   /* Fixed seed, for now */
 
@@ -370,7 +370,7 @@ int main(int argc, char **argv)
             for(j = 0; j < cnj; j++) {
                 x = xs;
                 for(i = 0; i < cni; i++, ii++) {
-                    double noisefreq = 20., noisetimefreq = 1.;
+                    double noisefreq = 20., noisetimefreq = 0.25;
                     float sinusoid = ( sin(omegax*x)+sinshift + \
                                        sin(omegay*y)+sinshift + \
                                        cos(omegaz*z)+sinshift ) * sinscale;
@@ -402,6 +402,9 @@ int main(int argc, char **argv)
             writepvti("cartiso", "value", comm, rank, nprocs, tt, ni, nj, nk,
                       is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1, 
                       deltax, deltay, deltaz, data);
+            writepvti("cartiso", "noise", comm, rank, nprocs, tt, ni, nj, nk,
+                      is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1, 
+                      deltax, deltay, deltaz, xdata);
         }
 #endif
 
@@ -411,7 +414,7 @@ int main(int argc, char **argv)
         if(rank == 0) {
             printf("   Isosurface...\n");   fflush(stdout);
         }
-        isosurf(&iso, 0.7, data, NULL);
+        isosurf(&iso, 0.7, data, xdata);
         /*printf("      %d tris = %llu\n", rank, iso.ntris);*/
         print_loadbalance(comm, rank, nprocs, iso.ntris);
 
@@ -427,7 +430,7 @@ int main(int argc, char **argv)
                 printf("      Writing pvtp...\n");   fflush(stdout);
             }
             writepvtp("cartiso", "iso", comm, rank, nprocs, tt, iso.ntris,
-                      iso.points, iso.norms, iso.xvals, NULL);
+                      iso.points, iso.norms, iso.xvals, "noise");
         }
 #endif
 

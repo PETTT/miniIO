@@ -18,9 +18,11 @@ CFLAGS += -DHAS_PVTP
 
 ### End of Output Modules ###
 
+CFLAGS += $(OSNINC)
+
 .PHONY: clean depend
 
-cartiso: $(OBJS)
+cartiso: $(OSNOBJ) $(OBJS)
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 clean:

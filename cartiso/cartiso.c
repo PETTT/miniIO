@@ -5,6 +5,7 @@
 #include <mpi.h>
 #include "sfc.h"
 #include "iso.h"
+#include "open-simplex-noise.h"
 
 /*## Add Output Modules' Includes Here ##*/
 
@@ -111,7 +112,7 @@ int main(int argc, char **argv)
     int a;
     float x, y, z;
     float deltax, deltay, deltaz;
-    float *data, *sinusoid;
+    float *data, *xdata;
     int inp = 0;      /* Number of tasks in i */
     int jnp = 0;      /* Number of tasks in j */
     int knp = 0;      /* Number of tasks in k */
@@ -145,7 +146,8 @@ int main(int argc, char **argv)
     int gaussmovebackward = 0;       /* Whether gaussmove goes backward */
     struct sfc3_ctx sfc;     /* Space filling curve for gaussmove */
     int sfc0i, sfc0j, sfc0k;    /* Space filling curve 1st of 2 points */
-    struct isoinfo iso;
+    struct isoinfo iso;       /* Isosurface context */
+    struct osn_context *osn;    /* Open simplex noise context */
  
     /* MPI vars */
     int rank, nprocs; 
@@ -300,10 +302,12 @@ int main(int argc, char **argv)
     }
     /* Set up isosurfacing structure */
     isoinit(&iso, xs, ys, zs, deltax, deltay, deltaz, cni, cnj, cnk, 0);
+    /* Set up osn */
+    open_simplex_noise(12345, &osn);   /* Fixed seed, for now */
 
     /* Allocate arrays */
     data = (float *) malloc((size_t)cni*cnj*cnk*sizeof(float));
-    sinusoid = (float *) malloc((size_t)cni*cnj*cnk*sizeof(float));
+    xdata = (float *) malloc((size_t)cni*cnj*cnk*sizeof(float));
 
     /*## Add Output Modules' Initialization Here ##*/
 
@@ -366,13 +370,17 @@ int main(int argc, char **argv)
             for(j = 0; j < cnj; j++) {
                 x = xs;
                 for(i = 0; i < cni; i++, ii++) {
-                    sinusoid[ii] = ( sin(omegax*x)+sinshift + \
-                                     sin(omegay*y)+sinshift + \
-                                     cos(omegaz*z)+sinshift ) * sinscale;
+                    double noisefreq = 20., noisetimefreq = 1.;
+                    float sinusoid = ( sin(omegax*x)+sinshift + \
+                                       sin(omegay*y)+sinshift + \
+                                       cos(omegaz*z)+sinshift ) * sinscale;
                     data[ii] = exp( alpha3*( (x-x0)*(x-x0)/sigmax2 + \
                                              (y-y0)*(y-y0)/sigmay2 + \
                                              (z-z0)*(z-z0)/sigmaz2 ) ) * \
-                               sinusoid[ii];
+                               sinusoid;
+                    xdata[ii] = (float)open_simplex_noise4(osn, x * noisefreq, y * noisefreq, 
+                                                           z * noisefreq, tt*noisetimefreq);
+                    /* need other frequencies */
                     x += deltax;
                 }
                 y += deltay;
@@ -432,9 +440,10 @@ int main(int argc, char **argv)
 
     /*## End of Output Module Cleanup ##*/
 
+    open_simplex_noise_free(osn);
     isofree(&iso);
     free(data);
-    free(sinusoid);
+    free(xdata);
  
     MPI_Finalize();
  

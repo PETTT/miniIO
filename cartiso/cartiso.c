@@ -132,7 +132,7 @@ int main(int argc, char **argv)
     float y0 = 0.5f;
     float z0 = 0.5f;
     int centertask = 1;    /* Set Gaussian center at first task */
-    float A = 0.25f;   /* Amplitude of sinusoid from top relative when Gaussian present */
+    float A = -1.f;   /* Ampl. of sinusoid from top relative when Gaussian present, -1 invalid */
     float fx = 15.f;      /* Freq. of sinusoid */
     float fy = 15.f;
     float fz = 15.f;
@@ -148,6 +148,7 @@ int main(int argc, char **argv)
     int sfc0i, sfc0j, sfc0k;    /* Space filling curve 1st of 2 points */
     struct isoinfo iso;       /* Isosurface context */
     struct osn_context *osn;    /* Open simplex noise context */
+    float isothresh = -1.f;    /* Threshold of isosurface, -1 invalid */
  
     /* MPI vars */
     int rank, nprocs; 
@@ -266,6 +267,13 @@ int main(int argc, char **argv)
     MPI_Cart_create(MPI_COMM_WORLD, 3, cprocs, cpers, 1, &comm);
     MPI_Comm_rank(comm, &rank);
     MPI_Cart_coords(comm, rank, 3, crnk);
+
+    /* Assign default arguments for A & isothresh */
+    if(isothresh == -1.f)
+        isothresh = exp(-0.5);   /* Default is at the gaussian of 1*sigma */
+    if(A == -1.f)
+        A = (1 - isothresh) * 1.05;   /* Default is at isothr + 5% to allow for good isos */
+    if(rank==0)  printf("isothresh = %f, A = %f\n", isothresh, A);
  
     /* Data inits */
     omegax = fx * 2 * M_PI;
@@ -299,6 +307,7 @@ int main(int argc, char **argv)
         x0 = (float)(sfc0i + 1) / (inp + 1);
         y0 = (float)(sfc0j + 1) / (jnp + 1);
         z0 = (float)(sfc0k + 1) / (knp + 1);
+        if(rank==0)  printf("x0=%f, y0=%f, z0=%f\n", x0, y0, z0);
     }
     /* Set up isosurfacing structure */
     isoinit(&iso, xs, ys, zs, deltax, deltay, deltaz, cni, cnj, cnk, 1);
@@ -370,7 +379,7 @@ int main(int argc, char **argv)
             for(j = 0; j < cnj; j++) {
                 x = xs;
                 for(i = 0; i < cni; i++, ii++) {
-                    double noisefreq = 20., noisetimefreq = 0.25;
+                    double noisefreq = 0.3125, noisetimefreq = 0.25;
                     float sinusoid = ( sin(omegax*x)+sinshift + \
                                        sin(omegay*y)+sinshift + \
                                        cos(omegaz*z)+sinshift ) * sinscale;
@@ -414,7 +423,7 @@ int main(int argc, char **argv)
         if(rank == 0) {
             printf("   Isosurface...\n");   fflush(stdout);
         }
-        isosurf(&iso, 0.7, data, xdata);
+        isosurf(&iso, isothresh, data, xdata);
         /*printf("      %d tris = %llu\n", rank, iso.ntris);*/
         print_loadbalance(comm, rank, nprocs, iso.ntris);
 

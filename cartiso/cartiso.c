@@ -60,6 +60,10 @@ void print_usage(int rank, const char *errstr)
 "      Default: near the value of gaussian of 1*sigma, i.e. e^(-0.5)\n"
 "    --freq FX FY FZ : Frequency of sinusoid function\n"
 "      FX, FY, FZ : Indicates the number of sinusoid periods across the domain\n"
+"    --noisespacefreq FNS : Spatial frequency of noise function\n"
+"      FNS : space frequency value; Default: 10.0\n"
+"    --noisetimefreq FNT : Temporal frequency of noise function\n"
+"      FNT : time frequency value;  Default: 0.25\n"
 "    --tsteps NT : Number of time steps; valid values are > 1\n"
 "    --tstart TS : Starting time step; valid values are > 0\n"
 "    --sin2gauss : Mode that 'morphs' between a sinusoid and a Gaussian over all\n"
@@ -140,6 +144,8 @@ int main(int argc, char **argv)
     float omegax;      /* Angular freq. */
     float omegay;
     float omegaz;
+    double noisespacefreq = 10.0;   /* Spatial frequency of noise */
+    double noisetimefreq = 0.25;    /* Temporal frequency of noise */
     int tstart = 0;
     int nt = 50;  /* Number of time steps */
     typedef enum { sin2gauss, gaussmove, gaussresize } modetype;
@@ -206,6 +212,10 @@ int main(int argc, char **argv)
             fx = strtof(argv[++a], NULL);
             fy = strtof(argv[++a], NULL);
             fz = strtof(argv[++a], NULL);
+        } else if(!strcasecmp(argv[a], "--noisespacefreq")) {
+            noisespacefreq = strtod(argv[++a], NULL);
+        } else if(!strcasecmp(argv[a], "--noisetimefreq")) {
+            noisetimefreq = strtod(argv[++a], NULL);
         } else if(!strcasecmp(argv[a], "--tsteps")) {
             nt = atoi(argv[++a]);
         } else if(!strcasecmp(argv[a], "--tstart")) {
@@ -381,14 +391,13 @@ int main(int argc, char **argv)
             for(j = 0; j < cnj; j++) {
                 x = xs;
                 for(i = 0; i < cni; i++, ii++) {
-                    double noisefreq = 10.0, noisetimefreq = 0.25;
                     float sinusoid = ( sin(omegax*x) + sin(omegay*y) + \
                                        cos(omegaz*z) + sinshift ) * sinscale;
                     data[ii] = exp( -alpha*( (x-x0)*(x-x0)/sigmax2 + \
                                              (y-y0)*(y-y0)/sigmay2 + \
                                              (z-z0)*(z-z0)/sigmaz2 ) ) * sinusoid;
-                    xdata[ii] = (float)open_simplex_noise4(osn, x * noisefreq, y * noisefreq, 
-                                                           z * noisefreq, tt*noisetimefreq);
+                    xdata[ii] = (float)open_simplex_noise4(osn, x * noisespacefreq, 
+                                  y * noisespacefreq, z * noisespacefreq, tt*noisetimefreq);
                     /* need other frequencies */
                     x += deltax;
                 }

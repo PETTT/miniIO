@@ -57,6 +57,7 @@ void print_usage(int rank, const char *errstr)
 "    --amp AMP : Amplitude of the sinusoid function from the top (1.0)\n"
 "      AMP : Sinusoid tops out at 1.0, so AMP is the distance it goes down from 1.0\n"
 "      Valid ranges are from 0.0 to 1.0\n"
+"      Default: near the value of gaussian of 1*sigma, i.e. e^(-0.5)\n"
 "    --freq FX FY FZ : Frequency of sinusoid function\n"
 "      FX, FY, FZ : Indicates the number of sinusoid periods across the domain\n"
 "    --tsteps NT : Number of time steps; valid values are > 1\n"
@@ -268,11 +269,13 @@ int main(int argc, char **argv)
     MPI_Comm_rank(comm, &rank);
     MPI_Cart_coords(comm, rank, 3, crnk);
 
-    /* Assign default arguments for A & isothresh */
-    if(isothresh == -1.f)
-        isothresh = exp(-0.5);   /* Default is at the gaussian of 1*sigma */
+    /* Assign default arguments for A & isothresh */ 
+    if(isothresh == -1.f) {
+        /*isothresh = exp(-0.5);   * Default is at the gaussian of 1*sigma */
+        isothresh = 0.68;   /* Needs to be > 2/3 to extract the "top" half of sin topology */
+    }
     if(A == -1.f)
-        A = (1 - isothresh) * 1.05;   /* Default is at isothr + 5% to allow for good isos */
+        A = (1 - exp(-0.5));   /* Default is at gaussian of 1*sigma, but from bottom */
     if(rank==0)  printf("isothresh = %f, A = %f\n", isothresh, A);
  
     /* Data inits */
@@ -304,9 +307,9 @@ int main(int argc, char **argv)
     }
     /* Set up center coords if centertask is on */
     if(centertask) {
-        x0 = (float)(sfc0i + 1) / (inp + 1);
-        y0 = (float)(sfc0j + 1) / (jnp + 1);
-        z0 = (float)(sfc0k + 1) / (knp + 1);
+        x0 = (sfc0i + 1.f) / inp - .5f / inp;
+        y0 = (sfc0j + 1.f) / jnp - .5f / jnp;
+        z0 = (sfc0k + 1.f) / knp - .5f / knp;
         if(rank==0)  printf("x0=%f, y0=%f, z0=%f\n", x0, y0, z0);
     }
     /* Set up isosurfacing structure */
@@ -327,7 +330,7 @@ int main(int argc, char **argv)
     for(t = 0, tt = tstart; t < nt; t++, tt++) {
         float tpar = (float)t / (nt-1);    /* Time anim. parameter [0,1] */
         float alpha = 1.f;        /* Time parameter: changes for sin2gauss */
-        float alpha3, sinshift, sinscale, sigmax2, sigmay2, sigmaz2;
+        float sinshift, sinscale, sigmax2, sigmay2, sigmaz2;
         float tpar_sfc;    /* Time parameter between two sfc points */
         size_t ii;     /* data index */
 
@@ -355,18 +358,17 @@ int main(int argc, char **argv)
                     sfc3_serpentine_next(&sfc);
                     tpar_sfc -= 1.f;
                 }
-                x0 = (1-tpar_sfc) * (sfc0i + 1) / (inp + 1) +
-                       (tpar_sfc) * (sfc.i + 1) / (inp + 1);
-                y0 = (1-tpar_sfc) * (sfc0j + 1) / (jnp + 1) +
-                       (tpar_sfc) * (sfc.j + 1) / (jnp + 1);
-                z0 = (1-tpar_sfc) * (sfc0k + 1) / (knp + 1) +
-                       (tpar_sfc) * (sfc.k + 1) / (knp + 1);
+                x0 = (1-tpar_sfc) * (sfc0i + 1.f) / inp - .5f / inp +
+                       (tpar_sfc) * (sfc.i + 1.f) / inp - .5f / inp;
+                y0 = (1-tpar_sfc) * (sfc0j + 1.f) / jnp - .5f / jnp +
+                       (tpar_sfc) * (sfc.j + 1.f) / jnp - .5f / jnp;
+                z0 = (1-tpar_sfc) * (sfc0k + 1.f) / knp - .5f / knp +
+                       (tpar_sfc) * (sfc.k + 1.f) / knp - .5f / knp;
                 break;
         }
 
         /* Intermediate terms */
-        alpha3 = -alpha / 3.f;     /* 1/3 alpha, for each dimension */
-        sinshift = 2/(alpha*A-alpha+1)-1;   /* Shift sine up to top 1, with alpha */
+        sinshift = (2/(alpha*A-alpha+1)-1)*3;   /* Shift sine up to top 1, with alpha */
         sinscale = (alpha*A-alpha+1)/2/3;   /* Scale sine down to A ampl, with alpha */
         sigmax2 = 2*sigmax*sigmax;    /* 2*sigma^2 */
         sigmay2 = 2*sigmay*sigmay;
@@ -379,14 +381,12 @@ int main(int argc, char **argv)
             for(j = 0; j < cnj; j++) {
                 x = xs;
                 for(i = 0; i < cni; i++, ii++) {
-                    double noisefreq = 0.3125, noisetimefreq = 0.25;
-                    float sinusoid = ( sin(omegax*x)+sinshift + \
-                                       sin(omegay*y)+sinshift + \
-                                       cos(omegaz*z)+sinshift ) * sinscale;
-                    data[ii] = exp( alpha3*( (x-x0)*(x-x0)/sigmax2 + \
+                    double noisefreq = 10.0, noisetimefreq = 0.25;
+                    float sinusoid = ( sin(omegax*x) + sin(omegay*y) + \
+                                       cos(omegaz*z) + sinshift ) * sinscale;
+                    data[ii] = exp( -alpha*( (x-x0)*(x-x0)/sigmax2 + \
                                              (y-y0)*(y-y0)/sigmay2 + \
-                                             (z-z0)*(z-z0)/sigmaz2 ) ) * \
-                               sinusoid;
+                                             (z-z0)*(z-z0)/sigmaz2 ) ) * sinusoid;
                     xdata[ii] = (float)open_simplex_noise4(osn, x * noisefreq, y * noisefreq, 
                                                            z * noisefreq, tt*noisetimefreq);
                     /* need other frequencies */

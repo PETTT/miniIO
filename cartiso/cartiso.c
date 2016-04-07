@@ -368,12 +368,12 @@ int main(int argc, char **argv)
                     sfc3_serpentine_next(&sfc);
                     tpar_sfc -= 1.f;
                 }
-                x0 = (1-tpar_sfc) * (sfc0i + 1.f) / inp - .5f / inp +
-                       (tpar_sfc) * (sfc.i + 1.f) / inp - .5f / inp;
-                y0 = (1-tpar_sfc) * (sfc0j + 1.f) / jnp - .5f / jnp +
-                       (tpar_sfc) * (sfc.j + 1.f) / jnp - .5f / jnp;
-                z0 = (1-tpar_sfc) * (sfc0k + 1.f) / knp - .5f / knp +
-                       (tpar_sfc) * (sfc.k + 1.f) / knp - .5f / knp;
+                x0 = (1-tpar_sfc) * ((sfc0i + 1.f) / inp - .5f / inp) +
+                       (tpar_sfc) * ((sfc.i + 1.f) / inp - .5f / inp);
+                y0 = (1-tpar_sfc) * ((sfc0j + 1.f) / jnp - .5f / jnp) +
+                       (tpar_sfc) * ((sfc.j + 1.f) / jnp - .5f / jnp);
+                z0 = (1-tpar_sfc) * ((sfc0k + 1.f) / knp - .5f / knp) +
+                       (tpar_sfc) * ((sfc.k + 1.f) / knp - .5f / knp);
                 break;
         }
 

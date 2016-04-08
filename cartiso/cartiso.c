@@ -86,12 +86,12 @@ void print_usage(int rank, const char *errstr)
     /*## End of Output Module Usage Strings ##*/
 }
 
-void print_loadbalance(MPI_Comm comm, int rank, int nprocs, uint64_t ntris)
+void print_stats(MPI_Comm comm, int rank, int nprocs, uint64_t ntris)
 {
     uint64_t *rntris;   /* All triangle counts */
     int i;
-    float Lmax = -1.f, Lbar = 0.f;
-    float lib;
+    double Lmax = -1., Lbar = 0.;
+    double Ltot = 0., Limb, Lstd = 0.;
 
     if(rank == 0)
         rntris = (uint64_t *) malloc(nprocs*sizeof(uint64_t));
@@ -102,9 +102,14 @@ void print_loadbalance(MPI_Comm comm, int rank, int nprocs, uint64_t ntris)
             if(rntris[i] > Lmax)   Lmax = rntris[i];
             Lbar += rntris[i];
         }
+        Ltot = Lbar;
         Lbar /= nprocs;
-        lib = (Lmax / Lbar - 1);
-        printf("      Load imbalance = %0.2f\n", lib);
+        Limb = (Lmax / Lbar - 1);
+        for(i = 0; i < nprocs; i++) 
+            Lstd += (rntris[i]-Lbar)*(rntris[i]-Lbar);
+        Lstd = sqrt(Lstd/nprocs);
+        printf("      Total tris = %.0f, Mean = %.1f, Std = %.1f, Load imbalance = %0.2f\n", 
+                Ltot, Lbar, Lstd, Limb);
         free(rntris);
     }
 }
@@ -434,7 +439,7 @@ int main(int argc, char **argv)
         }
         isosurf(&iso, isothresh, data, xdata);
         /*printf("      %d tris = %llu\n", rank, iso.ntris);*/
-        print_loadbalance(comm, rank, nprocs, iso.ntris);
+        print_stats(comm, rank, nprocs, iso.ntris);
 
         if(rank == 0) {
             printf("   Isosurface Output...\n");   fflush(stdout);

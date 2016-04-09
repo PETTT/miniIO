@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <math.h>
 #include <string.h>
+#include <stdint.h>
 #include <mpi.h>
 
 #include "pvtp.h"

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <stdint.h>
 #include <math.h>
 #include <mpi.h>
 #include "sfc.h"

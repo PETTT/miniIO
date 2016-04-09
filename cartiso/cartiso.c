@@ -5,6 +5,7 @@
 #include <mpi.h>
 #include "sfc.h"
 #include "iso.h"
+#include "timer.h"
 #include "open-simplex-noise.h"
 
 /*## Add Output Modules' Includes Here ##*/
@@ -161,6 +162,7 @@ int main(int argc, char **argv)
     struct isoinfo iso;       /* Isosurface context */
     struct osn_context *osn;    /* Open simplex noise context */
     float isothresh = -1.f;    /* Threshold of isosurface, -1 invalid */
+    double computetime, fullouttime, isotime, isoouttime;   /* Timers */
  
     /* MPI vars */
     int rank, nprocs; 
@@ -184,6 +186,7 @@ int main(int argc, char **argv)
 
     /* Init MPI */
     MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
     /* Parse command line */
@@ -354,6 +357,8 @@ int main(int argc, char **argv)
             fflush(stdout);
         }
 
+        timer_tick(&computetime, comm, 1);
+
         switch(mode) {
             case sin2gauss:
                 /* Easy, this just sets the alpha morphing parameter */
@@ -411,9 +416,12 @@ int main(int argc, char **argv)
             z += deltaz;
         }
 
+        timer_tock(&computetime);
+
         if(rank == 0) {
             printf("   Full Output...\n");   fflush(stdout);
         }
+        timer_tick(&fullouttime, comm, 1);
 
         /*## Add FULL OUTPUT Modules' Function Calls Per Timestep Here ##*/
 
@@ -433,17 +441,22 @@ int main(int argc, char **argv)
 
         /*## End of FULL OUTPUT Module Function Calls Per Timestep ##*/
 
+        timer_tock(&fullouttime);
+
         /* Generate isosurface */
         if(rank == 0) {
             printf("   Isosurface...\n");   fflush(stdout);
         }
+        timer_tick(&isotime, comm, 1);
         isosurf(&iso, isothresh, data, xdata);
+        timer_tock(&isotime);
         /*printf("      %d tris = %llu\n", rank, iso.ntris);*/
         print_stats(comm, rank, nprocs, iso.ntris);
 
         if(rank == 0) {
             printf("   Isosurface Output...\n");   fflush(stdout);
         }
+        timer_tick(&isoouttime, comm, 1);
 
         /*## Add ISOSURFACE OUTPUT Modules' Function Calls Per Timestep Here ##*/
 
@@ -459,7 +472,11 @@ int main(int argc, char **argv)
 
         /*## End of ISOSURFACE OUTPUT Module Function Calls Per Timestep ##*/
 
-        MPI_Barrier(MPI_COMM_WORLD);
+        timer_tock(&isoouttime);
+        timer_collectprintstats(computetime, comm, 0, "   Compute");
+        timer_collectprintstats(fullouttime, comm, 0, "   FullOutput");
+        timer_collectprintstats(isotime, comm, 0, "   Isosurface");
+        timer_collectprintstats(isoouttime, comm, 0, "   IsoOutput");
     }
 
     /*## Add Output Modules' Cleanup Here ##*/

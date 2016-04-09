@@ -61,6 +61,7 @@ void writepvtp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     FILE *f;
     MPI_File mf;
     MPI_Status mstat;
+    MPI_Info info = MPI_INFO_NULL;
     int r;
     uint64_t *rntris;   /* All triangle counts from each task */
     int ret;
@@ -113,6 +114,10 @@ void writepvtp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 
     chkdir1task(dirname, comm, rank, nprocs);
 
+    /* Set up MPI info */
+    MPI_Info_create(&info);
+    MPI_Info_set(info, "striping_factor", "1");
+
     /* Write .vtp files, if we have polys */
     if(ntris > 0) {
         uint64_t i, offsets = 0;   /* Offsets into the binary portion for each field */
@@ -120,7 +125,7 @@ void writepvtp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
         snprintf(fname, fnstrmax, "%s.%s.%0*d.d/%0*d.vtp", name, varname, timedigits,
                  tstep, rankdigits, rank);
         ret = MPI_File_open(MPI_COMM_SELF, fname, MPI_MODE_WRONLY | MPI_MODE_CREATE,
-                            MPI_INFO_NULL, &mf);
+                            info, &mf);
         if(ret) {
             fprintf(stderr, "writepvtp error: could not open %s\n", fname);
             MPI_Abort(comm, 1);

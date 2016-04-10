@@ -77,7 +77,7 @@ void timer_collectstats(double timer, MPI_Comm comm, int destrank, struct timer_
 
 void timer_printstats(char *prefix, struct timer_statinfo *stats)
 {
-    printf("%s timer seconds mean = %.2f, min = %.2f, max = %.2f, std = %.2f\n",
+    printf("%s timer seconds mean = %.2f, min = %.2f, max = %.2f, std = %.3f\n",
            prefix, stats->mean, stats->min, stats->max, stats->std);
 }
 

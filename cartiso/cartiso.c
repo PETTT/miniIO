@@ -374,7 +374,7 @@ int main(int argc, char **argv)
             case gaussmove:
                 /* Interpolate between two sfc points with time parameter */
                 tpar_sfc = tpar*(nprocs-1) - sfc.ndx + 1;  /* Param between points */
-                if(tpar_sfc > 1.f) {        /* if param>1, it's time to advance sfc */
+                while(tpar_sfc > 1.f) {        /* while param>1, it's time to advance sfc */
                     sfc0i = sfc.i;  sfc0j = sfc.j;  sfc0k = sfc.k;
                     sfc3_serpentine_next(&sfc);
                     tpar_sfc -= 1.f;

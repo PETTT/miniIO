@@ -42,6 +42,6 @@ sfc: sfc.c
 
 iso.o: iso.h
 sfc.o: sfc.h
-cartiso.o: sfc.h iso.h pvti.h pvtp.h
+cartiso.o: sfc.h iso.h ../timer.h ../osn/open-simplex-noise.h pvti.h pvtp.h
 pvti.o: pvti.h
 pvtp.o: pvtp.h

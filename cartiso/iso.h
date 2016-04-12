@@ -1,4 +1,6 @@
 
+#include <stdint.h>
+
 struct isoinfo {
     float x0, y0, z0;    /* Starting coordinates */
     float xd, yd, zd;    /* Coordinate deltas */

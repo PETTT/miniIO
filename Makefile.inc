@@ -1,5 +1,5 @@
 
-# MPI Compilers
+# MPI Compiler wrappers preferred; just compilers otherwise
 CC = mpicc
 CXX = mpicxx
 FC = mpif90
@@ -8,14 +8,19 @@ FC = mpif90
 OPT = -O3
 #DBG = -g
 
-# Flags; leave OPT & DBG alone but add whatever else you want
-CFLAGS = $(OPT) $(DBG)
-CXXFLAGS = $(OPT) $(DBG)
-FCFLAGS = $(OPT) $(DBG)
-LDFLAGS = $(OPT) $(DBG)
+# Flags, set as needed; add MPI flags if wrappers weren't available 
+CFLAGS = 
+CXXFLAGS = 
+FCFLAGS = 
+LDFLAGS = 
 LIBS = 
 
 # You should probably leave the rest below alone
+
+CFLAGS += $(OPT) $(DBG) -I..
+CXXFLAGS += $(OPT) $(DBG) -I..
+FCFLAGS += $(OPT) $(DBG) -I..
+LDFLAGS += $(OPT) $(DBG) -I..
 
 # Common rules for those needing osn
 #   just add $(OSNOBJ) to list of dependencies (and objects if not using $^)

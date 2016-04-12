@@ -4,6 +4,7 @@
 #include <limits.h>
 #include <strings.h>
 #include <assert.h>
+#include <stdint.h>
 #include <mpi.h>
 
 /*## Add Output Modules' Includes Here ##*/

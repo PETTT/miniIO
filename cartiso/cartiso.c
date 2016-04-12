@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <stdint.h>
 #include <math.h>
 #include <mpi.h>
 #include "sfc.h"
 #include "iso.h"
+#include "timer.h"
 #include "open-simplex-noise.h"
 
 /*## Add Output Modules' Includes Here ##*/
@@ -57,8 +59,13 @@ void print_usage(int rank, const char *errstr)
 "    --amp AMP : Amplitude of the sinusoid function from the top (1.0)\n"
 "      AMP : Sinusoid tops out at 1.0, so AMP is the distance it goes down from 1.0\n"
 "      Valid ranges are from 0.0 to 1.0\n"
+"      Default: near the value of gaussian of 1*sigma, i.e. e^(-0.5)\n"
 "    --freq FX FY FZ : Frequency of sinusoid function\n"
 "      FX, FY, FZ : Indicates the number of sinusoid periods across the domain\n"
+"    --noisespacefreq FNS : Spatial frequency of noise function\n"
+"      FNS : space frequency value; Default: 10.0\n"
+"    --noisetimefreq FNT : Temporal frequency of noise function\n"
+"      FNT : time frequency value;  Default: 0.25\n"
 "    --tsteps NT : Number of time steps; valid values are > 1\n"
 "    --tstart TS : Starting time step; valid values are > 0\n"
 "    --sin2gauss : Mode that 'morphs' between a sinusoid and a Gaussian over all\n"
@@ -81,12 +88,12 @@ void print_usage(int rank, const char *errstr)
     /*## End of Output Module Usage Strings ##*/
 }
 
-void print_loadbalance(MPI_Comm comm, int rank, int nprocs, uint64_t ntris)
+void print_stats(MPI_Comm comm, int rank, int nprocs, uint64_t ntris)
 {
     uint64_t *rntris;   /* All triangle counts */
     int i;
-    float Lmax = -1.f, Lbar = 0.f;
-    float lib;
+    double Lmax = -1., Lbar = 0.;
+    double Ltot = 0., Limb, Lstd = 0.;
 
     if(rank == 0)
         rntris = (uint64_t *) malloc(nprocs*sizeof(uint64_t));
@@ -97,9 +104,14 @@ void print_loadbalance(MPI_Comm comm, int rank, int nprocs, uint64_t ntris)
             if(rntris[i] > Lmax)   Lmax = rntris[i];
             Lbar += rntris[i];
         }
+        Ltot = Lbar;
         Lbar /= nprocs;
-        lib = (Lmax / Lbar - 1);
-        printf("      Load imbalance = %0.2f\n", lib);
+        Limb = (Lmax / Lbar - 1);
+        for(i = 0; i < nprocs; i++) 
+            Lstd += (rntris[i]-Lbar)*(rntris[i]-Lbar);
+        Lstd = sqrt(Lstd/nprocs);
+        printf("      Total tris = %.0f, Mean = %.1f, Std = %.1f, Load imbalance = %0.2f\n", 
+                Ltot, Lbar, Lstd, Limb);
         free(rntris);
     }
 }
@@ -132,13 +144,15 @@ int main(int argc, char **argv)
     float y0 = 0.5f;
     float z0 = 0.5f;
     int centertask = 1;    /* Set Gaussian center at first task */
-    float A = 0.25f;   /* Amplitude of sinusoid from top relative when Gaussian present */
+    float A = -1.f;   /* Ampl. of sinusoid from top relative when Gaussian present, -1 invalid */
     float fx = 15.f;      /* Freq. of sinusoid */
     float fy = 15.f;
     float fz = 15.f;
     float omegax;      /* Angular freq. */
     float omegay;
     float omegaz;
+    double noisespacefreq = 10.0;   /* Spatial frequency of noise */
+    double noisetimefreq = 0.25;    /* Temporal frequency of noise */
     int tstart = 0;
     int nt = 50;  /* Number of time steps */
     typedef enum { sin2gauss, gaussmove, gaussresize } modetype;
@@ -148,6 +162,8 @@ int main(int argc, char **argv)
     int sfc0i, sfc0j, sfc0k;    /* Space filling curve 1st of 2 points */
     struct isoinfo iso;       /* Isosurface context */
     struct osn_context *osn;    /* Open simplex noise context */
+    float isothresh = -1.f;    /* Threshold of isosurface, -1 invalid */
+    double computetime, fullouttime, isotime, isoouttime;   /* Timers */
  
     /* MPI vars */
     int rank, nprocs; 
@@ -171,6 +187,7 @@ int main(int argc, char **argv)
 
     /* Init MPI */
     MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
     /* Parse command line */
@@ -204,6 +221,10 @@ int main(int argc, char **argv)
             fx = strtof(argv[++a], NULL);
             fy = strtof(argv[++a], NULL);
             fz = strtof(argv[++a], NULL);
+        } else if(!strcasecmp(argv[a], "--noisespacefreq")) {
+            noisespacefreq = strtod(argv[++a], NULL);
+        } else if(!strcasecmp(argv[a], "--noisetimefreq")) {
+            noisetimefreq = strtod(argv[++a], NULL);
         } else if(!strcasecmp(argv[a], "--tsteps")) {
             nt = atoi(argv[++a]);
         } else if(!strcasecmp(argv[a], "--tstart")) {
@@ -266,6 +287,15 @@ int main(int argc, char **argv)
     MPI_Cart_create(MPI_COMM_WORLD, 3, cprocs, cpers, 1, &comm);
     MPI_Comm_rank(comm, &rank);
     MPI_Cart_coords(comm, rank, 3, crnk);
+
+    /* Assign default arguments for A & isothresh */ 
+    if(isothresh == -1.f) {
+        /*isothresh = exp(-0.5);   * Default is at the gaussian of 1*sigma */
+        isothresh = 0.68;   /* Needs to be > 2/3 to extract the "top" half of sin topology */
+    }
+    if(A == -1.f)
+        A = (1 - exp(-0.5));   /* Default is at gaussian of 1*sigma, but from bottom */
+    if(rank==0)  printf("isothresh = %f, A = %f\n", isothresh, A);
  
     /* Data inits */
     omegax = fx * 2 * M_PI;
@@ -296,9 +326,10 @@ int main(int argc, char **argv)
     }
     /* Set up center coords if centertask is on */
     if(centertask) {
-        x0 = (float)(sfc0i + 1) / (inp + 1);
-        y0 = (float)(sfc0j + 1) / (jnp + 1);
-        z0 = (float)(sfc0k + 1) / (knp + 1);
+        x0 = (sfc0i + 1.f) / inp - .5f / inp;
+        y0 = (sfc0j + 1.f) / jnp - .5f / jnp;
+        z0 = (sfc0k + 1.f) / knp - .5f / knp;
+        if(rank==0)  printf("x0=%f, y0=%f, z0=%f\n", x0, y0, z0);
     }
     /* Set up isosurfacing structure */
     isoinit(&iso, xs, ys, zs, deltax, deltay, deltaz, cni, cnj, cnk, 1);
@@ -318,7 +349,7 @@ int main(int argc, char **argv)
     for(t = 0, tt = tstart; t < nt; t++, tt++) {
         float tpar = (float)t / (nt-1);    /* Time anim. parameter [0,1] */
         float alpha = 1.f;        /* Time parameter: changes for sin2gauss */
-        float alpha3, sinshift, sinscale, sigmax2, sigmay2, sigmaz2;
+        float sinshift, sinscale, sigmax2, sigmay2, sigmaz2;
         float tpar_sfc;    /* Time parameter between two sfc points */
         size_t ii;     /* data index */
 
@@ -326,6 +357,8 @@ int main(int argc, char **argv)
             printf("t = %d\n", tt);
             fflush(stdout);
         }
+
+        timer_tick(&computetime, comm, 1);
 
         switch(mode) {
             case sin2gauss:
@@ -341,23 +374,22 @@ int main(int argc, char **argv)
             case gaussmove:
                 /* Interpolate between two sfc points with time parameter */
                 tpar_sfc = tpar*(nprocs-1) - sfc.ndx + 1;  /* Param between points */
-                if(tpar_sfc > 1.f) {        /* if param>1, it's time to advance sfc */
+                while(tpar_sfc > 1.f) {        /* while param>1, it's time to advance sfc */
                     sfc0i = sfc.i;  sfc0j = sfc.j;  sfc0k = sfc.k;
                     sfc3_serpentine_next(&sfc);
                     tpar_sfc -= 1.f;
                 }
-                x0 = (1-tpar_sfc) * (sfc0i + 1) / (inp + 1) +
-                       (tpar_sfc) * (sfc.i + 1) / (inp + 1);
-                y0 = (1-tpar_sfc) * (sfc0j + 1) / (jnp + 1) +
-                       (tpar_sfc) * (sfc.j + 1) / (jnp + 1);
-                z0 = (1-tpar_sfc) * (sfc0k + 1) / (knp + 1) +
-                       (tpar_sfc) * (sfc.k + 1) / (knp + 1);
+                x0 = (1-tpar_sfc) * ((sfc0i + 1.f) / inp - .5f / inp) +
+                       (tpar_sfc) * ((sfc.i + 1.f) / inp - .5f / inp);
+                y0 = (1-tpar_sfc) * ((sfc0j + 1.f) / jnp - .5f / jnp) +
+                       (tpar_sfc) * ((sfc.j + 1.f) / jnp - .5f / jnp);
+                z0 = (1-tpar_sfc) * ((sfc0k + 1.f) / knp - .5f / knp) +
+                       (tpar_sfc) * ((sfc.k + 1.f) / knp - .5f / knp);
                 break;
         }
 
         /* Intermediate terms */
-        alpha3 = -alpha / 3.f;     /* 1/3 alpha, for each dimension */
-        sinshift = 2/(alpha*A-alpha+1)-1;   /* Shift sine up to top 1, with alpha */
+        sinshift = (2/(alpha*A-alpha+1)-1)*3;   /* Shift sine up to top 1, with alpha */
         sinscale = (alpha*A-alpha+1)/2/3;   /* Scale sine down to A ampl, with alpha */
         sigmax2 = 2*sigmax*sigmax;    /* 2*sigma^2 */
         sigmay2 = 2*sigmay*sigmay;
@@ -370,16 +402,13 @@ int main(int argc, char **argv)
             for(j = 0; j < cnj; j++) {
                 x = xs;
                 for(i = 0; i < cni; i++, ii++) {
-                    double noisefreq = 20., noisetimefreq = 0.25;
-                    float sinusoid = ( sin(omegax*x)+sinshift + \
-                                       sin(omegay*y)+sinshift + \
-                                       cos(omegaz*z)+sinshift ) * sinscale;
-                    data[ii] = exp( alpha3*( (x-x0)*(x-x0)/sigmax2 + \
+                    float sinusoid = ( sin(omegax*x) + sin(omegay*y) + \
+                                       cos(omegaz*z) + sinshift ) * sinscale;
+                    data[ii] = exp( -alpha*( (x-x0)*(x-x0)/sigmax2 + \
                                              (y-y0)*(y-y0)/sigmay2 + \
-                                             (z-z0)*(z-z0)/sigmaz2 ) ) * \
-                               sinusoid;
-                    xdata[ii] = (float)open_simplex_noise4(osn, x * noisefreq, y * noisefreq, 
-                                                           z * noisefreq, tt*noisetimefreq);
+                                             (z-z0)*(z-z0)/sigmaz2 ) ) * sinusoid;
+                    xdata[ii] = (float)open_simplex_noise4(osn, x * noisespacefreq, 
+                                  y * noisespacefreq, z * noisespacefreq, tt*noisetimefreq);
                     /* need other frequencies */
                     x += deltax;
                 }
@@ -388,9 +417,12 @@ int main(int argc, char **argv)
             z += deltaz;
         }
 
+        timer_tock(&computetime);
+
         if(rank == 0) {
             printf("   Full Output...\n");   fflush(stdout);
         }
+        timer_tick(&fullouttime, comm, 1);
 
         /*## Add FULL OUTPUT Modules' Function Calls Per Timestep Here ##*/
 
@@ -410,17 +442,22 @@ int main(int argc, char **argv)
 
         /*## End of FULL OUTPUT Module Function Calls Per Timestep ##*/
 
+        timer_tock(&fullouttime);
+
         /* Generate isosurface */
         if(rank == 0) {
             printf("   Isosurface...\n");   fflush(stdout);
         }
-        isosurf(&iso, 0.7, data, xdata);
+        timer_tick(&isotime, comm, 1);
+        isosurf(&iso, isothresh, data, xdata);
+        timer_tock(&isotime);
         /*printf("      %d tris = %llu\n", rank, iso.ntris);*/
-        print_loadbalance(comm, rank, nprocs, iso.ntris);
+        print_stats(comm, rank, nprocs, iso.ntris);
 
         if(rank == 0) {
             printf("   Isosurface Output...\n");   fflush(stdout);
         }
+        timer_tick(&isoouttime, comm, 1);
 
         /*## Add ISOSURFACE OUTPUT Modules' Function Calls Per Timestep Here ##*/
 
@@ -436,7 +473,11 @@ int main(int argc, char **argv)
 
         /*## End of ISOSURFACE OUTPUT Module Function Calls Per Timestep ##*/
 
-        MPI_Barrier(MPI_COMM_WORLD);
+        timer_tock(&isoouttime);
+        timer_collectprintstats(computetime, comm, 0, "   Compute");
+        timer_collectprintstats(fullouttime, comm, 0, "   FullOutput");
+        timer_collectprintstats(isotime, comm, 0, "   Isosurface");
+        timer_collectprintstats(isoouttime, comm, 0, "   IsoOutput");
     }
 
     /*## Add Output Modules' Cleanup Here ##*/

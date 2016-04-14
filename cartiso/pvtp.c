@@ -1,7 +1,5 @@
 
 #include <stdio.h>
-#include <errno.h>
-#include <sys/stat.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <math.h>
@@ -9,44 +7,10 @@
 #include <stdint.h>
 #include <mpi.h>
 
+#include "pdirs.h"
 #include "pvtp.h"
 
 static const int fnstrmax = 4095;
-
-static void mkdir1task(char *dirname, MPI_Comm comm, int rank)
-{
-    int ret;
-
-    if(rank == 0) {
-        ret = mkdir(dirname, 0777);
-        if( ret && errno != EEXIST ) {  /* An error for anything but pre-existing */
-            fprintf(stderr, "pvtk error: Could not create directory.\n");
-            MPI_Abort(comm, 1);
-        }
-    }
-}
-
-static void chkdir1task(char *dirname, MPI_Comm comm, int rank, int nprocs)
-{
-    int ret;
-    struct stat fsbuf;
-
-    /* Have the last rank ensure that the directory is available */
-    if(rank == nprocs-1) { 
-        do {
-            int retry = 0;
-            usleep(200000);
-            ret = stat(dirname, &fsbuf);
-            if(ret && retry > 50) {   /* 50 retries * 200000 us = 10 s timeout */
-                fprintf(stderr, "pvtk error: timeout waiting for directory %s\n",
-                        dirname);
-                MPI_Abort(comm, 1);
-            }
-        } while(ret);
-    }
-    MPI_Barrier(comm);   /* Everyone is safe to use directory after barrier */
-}
-
 
 void writepvtp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs, 
                int tstep, uint64_t ntris, float *points, float *norms, 
@@ -69,7 +33,7 @@ void writepvtp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     
     /* Make directory for timestep */
     snprintf(dirname, fnstrmax, "%s.%s.%0*d.d", name, varname, timedigits, tstep);
-    mkdir1task(dirname, comm, rank);
+    mkdir1task(dirname, comm);
 
     /* Gather tri counts, in case some are zero, to leave them out */
     if(rank == 0)
@@ -113,7 +77,7 @@ void writepvtp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
         free(rntris);
     } /* end rank==0 */
 
-    chkdir1task(dirname, comm, rank, nprocs);
+    chkdir1task(dirname, comm);
 
     /* Set up MPI info */
     MPI_Info_create(&info);

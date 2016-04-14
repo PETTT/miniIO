@@ -5,6 +5,7 @@
 
 #include <sys/stat.h>
 #include <errno.h>
+#include <unistd.h>
 #include <mpi.h>
 
 /* Create a directory from one rank (rank=0)

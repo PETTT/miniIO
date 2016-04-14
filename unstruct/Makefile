@@ -6,10 +6,10 @@ SRCS = unstruct.c
 
 ### Add Output Modules Here ###
 
-# Example
-#OBJS += mymod.o
-#SRCS += mymod.c
-#CFLAGS += -DHAS_MYMOD
+# PRZM Output Module
+OBJS += przm.o
+SRCS += przm.c
+CFLAGS += -DHAS_PRZM
 
 ### End of Output Modules ###
 
@@ -29,3 +29,5 @@ depend:
 
 # DO NOT DELETE
 
+unstruct.o: przm.h
+przm.o: ../pdirs.h przm.h

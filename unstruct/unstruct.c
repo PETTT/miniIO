@@ -9,6 +9,10 @@
 
 /*## Add Output Modules' Includes Here ##*/
 
+#ifdef HAS_PRZM
+#  include "przm.h"
+#endif
+
 /*## End of Output Module Includes ##*/
 
 void print_usage(int rank, const char *errstr)
@@ -21,6 +25,10 @@ void print_usage(int rank, const char *errstr)
 "\n");
 
     /*## Add Output Modules' Usage String ##*/
+
+#ifdef HAS_PRZM
+    fprintf(stderr, "   --przm : Enable PRZM output.\n");
+#endif
 
     /*## End of Output Module Usage Strings ##*/
 }
@@ -127,6 +135,10 @@ int main(int argc, char **argv)
 
     /*## Add Output Modules' Variables Here ##*/
 
+#ifdef HAS_PRZM
+    int przmout = 0;
+#endif
+
     /*## End of Output Module Variables ##*/
 
     /* Init MPI */
@@ -148,6 +160,12 @@ int main(int argc, char **argv)
         }
 
         /*## Add Output Modules' Command Line Arguments Here ##*/
+
+#ifdef HAS_PRZM
+        else if(!strcasecmp(argv[a], "--przm")) {
+            przmout = 1;
+        }
+#endif
 
         /*## End of Output Module Command Line Arguments ##*/
 
@@ -237,15 +255,16 @@ int main(int argc, char **argv)
     for(k = 0, ii = 0; k < nlyr-1; k++) {
         uint64_t euv, iuv, nuv = nu * nv * k;
         for(euv = 0, iuv = 0; euv < nelems2; euv++) {
-            conns3[ii++] = conns2[iuv++];
-            conns3[ii++] = conns2[iuv++];
-            conns3[ii++] = conns2[iuv++];
+            conns3[ii++] = conns2[iuv];
+            conns3[ii++] = conns2[iuv+1];
+            conns3[ii++] = conns2[iuv+2];
             conns3[ii++] = conns2[iuv++] + nuv;
             conns3[ii++] = conns2[iuv++] + nuv;
             conns3[ii++] = conns2[iuv++] + nuv;
         }
     }
 
+#if 0
     /* DBG: write csv file in alternating series */
     {
         FILE *f;
@@ -262,6 +281,7 @@ int main(int argc, char **argv)
             MPI_Barrier(MPI_COMM_WORLD);
         }
     }
+#endif
 
     /*## Add Output Modules' Initialization Here ##*/
 
@@ -270,6 +290,16 @@ int main(int argc, char **argv)
     /* Main loops */
 
         /*## Add Output Modules' Function Calls Per Timestep Here ##*/
+        
+#ifdef HAS_PRZM
+        if(przmout) {
+            if(rank == 0) {
+                printf("      Writing przm...\n");   fflush(stdout);
+            }
+            writeprzm("unstruct", MPI_COMM_WORLD, 0, nptstask, xpts, ypts, zpts, 
+                      nelems3, conns3, "noise", NULL);
+        }
+#endif
 
         /*## End of Output Module Functions Calls Per Timestep ##*/
 

@@ -94,21 +94,21 @@ void prime_split(int n, int *n1, int *n2)
 }
 
 /* Signum function */
-float sgn(float x)
+double sgn(double x)
 {
-    return copysignf(1.f, x);
+    return copysign(1.0, x);
 }
 
 /* Superquadric ellipsoidal "c" function */
-float sqc(float w, float m)
+float sqc(double w, double m)
 {
-    return sgn(cosf(w)) * powf(fabsf(cosf(w)), m);
+    return (float)(sgn(cos(w)) * pow(fabs(cos(w)), m));
 }
 
 /* Superquadric ellipsoidal "s" function */
-float sqs(float w, float m)
+float sqs(double w, double m)
 {
-    return sgn(sinf(w)) * powf(fabsf(sinf(w)), m);
+    return (float)(sgn(sin(w)) * pow(fabs(sin(w)), m));
 }
 
 
@@ -213,10 +213,10 @@ int main(int argc, char **argv)
     dv = M_PI / vprocs / (nv-1);
     urank = rank % uprocs;
     vrank = rank / uprocs;
-    u0 = urank * du * (nu-1) - M_PI;   
-    u1 = u0 + du * (nu-1);                 /* #points to be continuous across task */
-    v0 = vrank * dv * (nv-1) - M_PI/2;
-    v1 = v0 + dv * (nv-1);
+    u0 = urank * 2 * M_PI / uprocs - M_PI;
+    u1 = (urank+1) * 2 * M_PI / uprocs - M_PI;   /* #points to be continuous across task */
+    v0 = vrank * M_PI / vprocs - M_PI/2;
+    v1 = (vrank+1) * M_PI / vprocs - M_PI/2;
     /*DBG*/printf("%d: %f-%f, %f-%f, %f, %f\n", rank, u0, u1, v0, v1, du, dv);
         
     /* Generate grid points with superquadric */
@@ -255,14 +255,14 @@ int main(int argc, char **argv)
     nelems3 = nelems2 * (nlyr-1);
     conns3 = (uint64_t *) malloc(nelems3*6*sizeof(uint64_t));
     for(k = 0, ii = 0; k < nlyr-1; k++) {
-        uint64_t euv, iuv, nuv = nu * nv * k;
+        uint64_t euv, iuv, nuv = nu * nv * k, nuv2 = nu * nv * (k+1);
         for(euv = 0, iuv = 0; euv < nelems2; euv++) {
-            conns3[ii++] = conns2[iuv];
-            conns3[ii++] = conns2[iuv+1];
-            conns3[ii++] = conns2[iuv+2];
-            conns3[ii++] = conns2[iuv++] + nuv;
-            conns3[ii++] = conns2[iuv++] + nuv;
-            conns3[ii++] = conns2[iuv++] + nuv;
+            conns3[ii++] = conns2[iuv] + nuv;
+            conns3[ii++] = conns2[iuv+1] + nuv;
+            conns3[ii++] = conns2[iuv+2] + nuv;
+            conns3[ii++] = conns2[iuv++] + nuv2;
+            conns3[ii++] = conns2[iuv++] + nuv2;
+            conns3[ii++] = conns2[iuv++] + nuv2;
         }
     }
 

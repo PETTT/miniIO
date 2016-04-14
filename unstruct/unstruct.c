@@ -239,7 +239,7 @@ int main(int argc, char **argv)
     conns2 = (uint64_t *) malloc(nelems2*3*sizeof(uint64_t));
     for(i = 0, ii = 0; i < nu-1; i++) {
         for(j = 0; j < nv-1; j++) {
-            uint64_t ndx = i * nv + j;
+            uint64_t ndx = rank * nptstask + i * nv + j;   /* Global point index */
             conns2[ii++] = ndx;
             conns2[ii++] = ndx + nv + 1;
             conns2[ii++] = ndx + nv;

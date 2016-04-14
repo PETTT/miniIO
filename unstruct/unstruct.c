@@ -209,12 +209,14 @@ int main(int argc, char **argv)
                 npoints, nptstask, uprocs, vprocs, nu, nv, nlyr); 
 
     /* Divide spherical topology tiles along u,v */
-    du = 2 * M_PI / uprocs / nu;
-    dv = M_PI / vprocs / nv;
+    du = 2 * M_PI / uprocs / (nu-1);
+    dv = M_PI / vprocs / (nv-1);
     urank = rank % uprocs;
     vrank = rank / uprocs;
-    u0 = urank * du * nu - M_PI;   u1 = u0 + du * nu;   /* #points to be continuous across task */
-    v0 = vrank * dv * nv - M_PI/2;   v1 = v0 + dv * nv;
+    u0 = urank * du * (nu-1) - M_PI;   
+    u1 = u0 + du * (nu-1);                 /* #points to be continuous across task */
+    v0 = vrank * dv * (nv-1) - M_PI/2;
+    v1 = v0 + dv * (nv-1);
     /*DBG*/printf("%d: %f-%f, %f-%f, %f, %f\n", rank, u0, u1, v0, v1, du, dv);
         
     /* Generate grid points with superquadric */
@@ -263,25 +265,6 @@ int main(int argc, char **argv)
             conns3[ii++] = conns2[iuv++] + nuv;
         }
     }
-
-#if 0
-    /* DBG: write csv file in alternating series */
-    {
-        FILE *f;
-        int r;
-        for(r = 0; r < nprocs; ++r) {
-            if(r == rank) {
-                f = fopen("tstunstruct.csv", r==0 ? "wb" : "ab");
-                for(k = 0, ii = 0; k < nlyr; k++)
-                    for(i = 0; i < nu; i++) 
-                        for(j = 0; j < nv; j++, ii++) 
-                            fprintf(f, "%f,%f,%f,%d\n", xpts[ii], ypts[ii], zpts[ii], r);
-                fclose(f);
-            }
-            MPI_Barrier(MPI_COMM_WORLD);
-        }
-    }
-#endif
 
     /*## Add Output Modules' Initialization Here ##*/
 

@@ -45,18 +45,24 @@ for r in range(nr):
             output.InsertNextCell(13, pointIds)
 
 tris = []
-numPoints = numPoints * np.uint64(nr)
 
 for r in range(nr):
     numTris = int(np.fromfile(f[r], np.uint64, 1)[0])
     if numTris:
         tris = np.concatenate((tris, np.fromfile(f[r], np.uint64, numTris)))
-        print tris.shape
+        #print tris.shape
 if type(tris) is not list:
-    sdata = np.zeros(numPoints, dtype=np.uint8)
+    sdata = np.zeros(numPoints*np.uint64(nr), dtype=np.uint8)
     sdata[np.uint32(tris)] = 1
     output.PointData.append(sdata, "surfflag")
         
+data = []
+
 for r in range(nr):
+    hasData = np.fromfile(f[r], np.uint32, 1)[0]
+    if hasData:
+        data = np.concatenate((data, np.fromfile(f[r], np.float32, numPoints)))
     f[r].close()
+if type(data) is not list:
+    output.PointData.append(data, "noise")
 

@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <mpi.h>
+#include "open-simplex-noise.h"
 
 /*## Add Output Modules' Includes Here ##*/
 
@@ -125,8 +126,10 @@ int main(int argc, char **argv)
     float *xpts, *ypts, *zpts;    /* Grid points */
     uint64_t nelems2, *conns2;      /* Number of grid triangles & connection array in 2D */
     uint64_t nelems3, *conns3;      /* Number of triangular prisms & connection array */
+    float *data;                  /* Data array */
     float uround = 0.3f;        /* Superquadric roundness u parameter */
     float vround = 0.3f;        /* Superquadric roundness v parameter */
+    struct osn_context *osn;    /* Open simplex noise context */
 
     /* MPI vars */
     int rank, nprocs;
@@ -266,6 +269,17 @@ int main(int argc, char **argv)
         }
     }
 
+    /* Set up osn */
+    open_simplex_noise(12345, &osn);   /* Fixed seed, for now */
+
+    /* Create data */
+    data = (float *) malloc(nptstask*sizeof(float));
+    for(i = 0; i < nptstask; i++) {
+        double noisespacefreq = 20.0/6;
+        data[i] = (float)open_simplex_noise4(osn, xpts[i]*noisespacefreq,
+                ypts[i]*noisespacefreq, zpts[i]*noisespacefreq, 0.0);
+    }
+
     /*## Add Output Modules' Initialization Here ##*/
 
     /*## End of Output Module Initialization ##*/
@@ -280,7 +294,7 @@ int main(int argc, char **argv)
                 printf("      Writing przm...\n");   fflush(stdout);
             }
             writeprzm("unstruct", MPI_COMM_WORLD, 0, nptstask, xpts, ypts, zpts, 
-                      nelems3, conns3, nelems2, conns2, "noise", NULL);
+                      nelems3, conns3, nelems2, conns2, "noise", data);
         }
 #endif
 
@@ -292,8 +306,10 @@ int main(int argc, char **argv)
 
     /* Cleanup */
 
+    open_simplex_noise_free(osn);
     free(xpts);  free(ypts);  free(zpts);
     free(conns2);  free(conns3);
+    free(data);
     MPI_Finalize();
 
     return 0;

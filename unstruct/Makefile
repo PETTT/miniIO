@@ -13,9 +13,11 @@ CFLAGS += -DHAS_PRZM
 
 ### End of Output Modules ###
 
+CFLAGS += $(OSNINC)
+
 .PHONY: clean depend
 
-unstruct: $(OBJS)
+unstruct: $(OSNOBJ) $(OBJS)
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 clean:
@@ -29,5 +31,5 @@ depend:
 
 # DO NOT DELETE
 
-unstruct.o: przm.h
+unstruct.o: ../osn/open-simplex-noise.h przm.h
 przm.o: ../pdirs.h przm.h

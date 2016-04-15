@@ -280,7 +280,7 @@ int main(int argc, char **argv)
                 printf("      Writing przm...\n");   fflush(stdout);
             }
             writeprzm("unstruct", MPI_COMM_WORLD, 0, nptstask, xpts, ypts, zpts, 
-                      nelems3, conns3, "noise", NULL);
+                      nelems3, conns3, nelems2, conns2, "noise", NULL);
         }
 #endif
 

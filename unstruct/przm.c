@@ -9,7 +9,7 @@ static const int fnstrmax = 4095;
 
 void writeprzm(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
                float *xpts, float *ypts, float *zpts, uint64_t nelems3, uint64_t *conns3,
-               char *varname, float *data)
+               uint64_t nelems2, uint64_t *conns2, char *varname, float *data)
 {
     char dirname[fnstrmax+1];
     char fname[fnstrmax+1];
@@ -67,13 +67,22 @@ void writeprzm(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
         MPI_File_write(mf, &hasgrid, 1, MPI_UNSIGNED, &mstat);
     }
 
-    /* Optional grid connections, writes a 64-bit 0 if no new connections */
+    /* Optional grid connections, writes a 64-bit 0 if no connections */
     if(conns3 && nelems3) {
         MPI_File_write(mf, &nelems3, 1, MPI_UNSIGNED_LONG_LONG, &mstat);
         MPI_File_write(mf, conns3, nelems3*6, MPI_UNSIGNED_LONG_LONG, &mstat);
     } else {
         uint64_t hasconn = 0;
         MPI_File_write(mf, &hasconn, 1, MPI_UNSIGNED_LONG_LONG, &mstat);
+    }
+
+    /* Optional 2D surface triangle connections, writes a 64-bit 0 if none */
+    if(conns2 && nelems2) {
+        MPI_File_write(mf, &nelems2, 1, MPI_UNSIGNED_LONG_LONG, &mstat);
+        MPI_File_write(mf, conns2, nelems2*3, MPI_UNSIGNED_LONG_LONG, &mstat);
+    } else {
+        uint64_t hasconn2 = 0;
+        MPI_File_write(mf, &hasconn2, 1, MPI_UNSIGNED_LONG_LONG, &mstat);
     }
 
     /* Optional variable data, starting with number of variables */

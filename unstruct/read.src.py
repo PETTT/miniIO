@@ -47,9 +47,9 @@ for r in range(nr):
 tris = []
 
 for r in range(nr):
-    numTris = int(np.fromfile(f[r], np.uint64, 1)[0])
-    if numTris:
-        tris = np.concatenate((tris, np.fromfile(f[r], np.uint64, numTris)))
+    numTriPts = int(np.fromfile(f[r], np.uint64, 1)[0]) * 3
+    if numTriPts:
+        tris = np.concatenate((tris, np.fromfile(f[r], np.uint64, numTriPts)))
         #print tris.shape
 if type(tris) is not list:
     sdata = np.zeros(numPoints*np.uint64(nr), dtype=np.uint8)

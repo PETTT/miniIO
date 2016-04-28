@@ -121,14 +121,20 @@ int main(int argc, char **argv)
     int nu, nv, nlyr;    /* Points per task per u,v,lyr spherical coord axis */
     float du, dv;          /* delta's along u & v points */
     float u0, u1, v0, v1;      /* Starting/ending points along u & v */
-    int i, j, k;
+    int i, j, k, t;
+    int nt = 50;               /* Number of time steps */
     uint64_t ii;
     float *xpts, *ypts, *zpts;    /* Grid points */
     uint64_t nelems2, *conns2;      /* Number of grid triangles & connection array in 2D */
     uint64_t nelems3, *conns3;      /* Number of triangular prisms & connection array */
     float *data;                  /* Data array */
-    float uround = 0.3f;        /* Superquadric roundness u parameter */
-    float vround = 0.3f;        /* Superquadric roundness v parameter */
+    float uround0 = 0.3f;        /* Superquadric roundness u parameter, starting */
+    float vround0 = 0.3f;        /* Superquadric roundness v parameter, starting */
+    float uround1 = -1.f;       /* Superquadric roundness u, ending over time */
+    float vround1 = -1.f;       /* Superquadric roundness v, ending over time */
+    float uround, vround;       /* Current superquadric roundness */
+    double noisespacefreq = 10;    /* Spatial frequency of noise */
+    double noisetimefreq = 0.25;    /* Temporal frequency of noise */
     struct osn_context *osn;    /* Open simplex noise context */
 
     /* MPI vars */
@@ -158,8 +164,17 @@ int main(int argc, char **argv)
             nptstask = strtoull(argv[++a], NULL, 10);
             npoints = 0;
         } else if(!strcasecmp(argv[a], "--roundness")) {
-            uround = atof(argv[++a]);
-            vround = atof(argv[++a]);
+            uround0= atof(argv[++a]);
+            vround0= atof(argv[++a]);
+        } else if(!strcasecmp(argv[a], "--animroundness")) {
+            uround1= atof(argv[++a]);
+            vround1= atof(argv[++a]);
+        } else if(!strcasecmp(argv[a], "--tsteps")) {
+            nt = atoi(argv[++a]);
+        } else if(!strcasecmp(argv[a], "--noisespacefreq")) {
+            noisespacefreq = strtod(argv[++a], NULL);
+        } else if(!strcasecmp(argv[a], "--noisetimefreq")) {
+            noisetimefreq = strtod(argv[++a], NULL);
         }
 
         /*## Add Output Modules' Command Line Arguments Here ##*/
@@ -194,6 +209,8 @@ int main(int argc, char **argv)
                           "       load balancing");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
+    if(uround1 == -1.f)   uround1 = uround0;
+    if(vround1 == -1.f)   vround1 = vround0;
 
     /* Determine a volumetric spherical topology that meets # of points requested */
     prime_split(nprocs, &uprocs, &vprocs);   /* Split tasks across spherical axes */
@@ -222,22 +239,10 @@ int main(int argc, char **argv)
     v1 = (vrank+1) * M_PI / vprocs - M_PI/2;
     /*DBG*/printf("%d: %f-%f, %f-%f, %f, %f\n", rank, u0, u1, v0, v1, du, dv);
         
-    /* Generate grid points with superquadric */
+    /* Allocate grid points */
     xpts = (float *) malloc(nptstask*sizeof(float));
     ypts = (float *) malloc(nptstask*sizeof(float));
     zpts = (float *) malloc(nptstask*sizeof(float));
-    for(k = 0, ii = 0; k < nlyr; k++) {
-        float w = 1.f + powf((float)k/(nlyr-1), 2.f) * 2.f;  /* layer w in [1,3] by squares */
-        for(i = 0; i < nu; i++) {
-            float u = u0 + du*i;
-            for(j = 0; j < nv; j++, ii++) {
-                float v = v0 + dv*j;
-                xpts[ii] = w * sqc(v, vround) * sqc(u, uround);
-                ypts[ii] = w * sqc(v, vround) * sqs(u, uround);
-                zpts[ii] = w * sqs(v, vround);
-            }
-        }
-    }
 
     /* Add surface connections, all are triangles */
     nelems2 = (nu-1) * (nv-1) * 2;
@@ -272,19 +277,41 @@ int main(int argc, char **argv)
     /* Set up osn */
     open_simplex_noise(12345, &osn);   /* Fixed seed, for now */
 
-    /* Create data */
+    /* Allocate data */
     data = (float *) malloc(nptstask*sizeof(float));
-    for(i = 0; i < nptstask; i++) {
-        double noisespacefreq = 20.0/6;
-        data[i] = (float)open_simplex_noise4(osn, xpts[i]*noisespacefreq,
-                ypts[i]*noisespacefreq, zpts[i]*noisespacefreq, 0.0);
-    }
 
     /*## Add Output Modules' Initialization Here ##*/
 
     /*## End of Output Module Initialization ##*/
 
     /* Main loops */
+    for(t = 0; t < nt; t++) {
+        float tpar = (float)t / (nt-1);    /* Time anim. parameter [0,1] */
+
+        /* Generate grid points with superquadric */
+        uround = (1-tpar)*uround0 + tpar*uround1;
+        vround = (1-tpar)*vround0 + tpar*vround1;
+        if( uround0 != uround1 || t == 0 ) {   /* Grid only updated if animating or time 0 */
+            for(k = 0, ii = 0; k < nlyr; k++) {
+                /* layer w in [1,3] by squares: */
+                float w = 1.f + powf((float)k/(nlyr-1), 2.f) * 2.f;
+                for(i = 0; i < nu; i++) {
+                    float u = u0 + du*i;
+                    for(j = 0; j < nv; j++, ii++) {
+                        float v = v0 + dv*j;
+                        xpts[ii] = w * sqc(v, vround) * sqc(u, uround);
+                        ypts[ii] = w * sqc(v, vround) * sqs(u, uround);
+                        zpts[ii] = w * sqs(v, vround);
+                    }
+                }
+            }
+        }
+
+        /* Set data */
+        for(i = 0; i < nptstask; i++) {
+            data[i] = (float)open_simplex_noise4(osn, xpts[i]*noisespacefreq,
+                    ypts[i]*noisespacefreq, zpts[i]*noisespacefreq, t*noisetimefreq);
+        }
 
         /*## Add Output Modules' Function Calls Per Timestep Here ##*/
         
@@ -293,12 +320,14 @@ int main(int argc, char **argv)
             if(rank == 0) {
                 printf("      Writing przm...\n");   fflush(stdout);
             }
-            writeprzm("unstruct", MPI_COMM_WORLD, 0, nptstask, xpts, ypts, zpts, 
+            writeprzm("unstruct", MPI_COMM_WORLD, t, nptstask, xpts, ypts, zpts,
                       nelems3, conns3, nelems2, conns2, "noise", data);
         }
 #endif
 
         /*## End of Output Module Functions Calls Per Timestep ##*/
+
+    }
 
     /*## Add Output Modules' Cleanup Here ##*/
 

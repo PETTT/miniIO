@@ -22,8 +22,27 @@ void print_usage(int rank, const char *errstr)
     if(errstr)
         fprintf(stderr, "%s\n\n", errstr);
     fprintf(stderr,
-"Usage: mpi_launcher [-n|-np NPROCS] ./unstruct "
-"\n");
+"Usage: mpi_launcher [-n|-np NPROCS] ./unstruct --points PTS [options]\n"
+"     OR\n"
+"       mpi_launcher [-n|-np NPROCS] ./unstruct --pointspertask PTST [options]\n"
+"    NPROCS : # of tasks launched by MPI; may or may not be implied or required by system\n\n"
+"  Required (one or the other, but not both):\n"
+"    --points PTS : Specifies total number of points for all tasks\n"
+"    --pointspertask PTST : Specified number of points per single task\n\n"
+"  Optional:\n"
+"    --roundness UR VR : Shape of superquadric for base grid\n"
+"       0 0 is a cube, 1 1 is a sphere, 2 2 is an octahedron, >2 >2 is increasingly concave\n"
+"       Defaults: 0.3 0.3\n"
+"    --animroundness UR VR : Shape of superquadric at final time step\n"
+"       If specified, linearly interpolates over time from starting roundness\n"
+"       Defaults: no change from initial roundness\n"
+"    --tsteps NT : Total number of time steps\n"
+"       Default: 50\n"
+"    --noisespacefreq FNS : Spatial frequency of noise function\n"
+"      FNS : space frequency value; Default: 10.0\n"
+"    --noisetimefreq FNT : Temporal frequency of noise function\n"
+"      FNT : time frequency value;  Default: 0.25\n"
+    );
 
     /*## Add Output Modules' Usage String ##*/
 

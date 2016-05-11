@@ -14,12 +14,13 @@ void print_usage(int rank, const char *errstr)
 
   if(errstr)
     fprintf(stderr, "%s\n\n", errstr);
-    fprintf(stderr, "Usage: mpi_launcher [-n|-np NPROCS] ./struct "
-	    "\n");
+  
+  fprintf(stderr, "Usage: mpi_launcher [-n|-np NPROCS] ./struct "
+	  "\n");
 
-    /*## Add Output Modules' Usage String ##*/
+  /*## Add Output Modules' Usage String ##*/
 
-    /*## End of Output Module Usage Strings ##*/
+  /*## End of Output Module Usage Strings ##*/
 }
 
 
@@ -36,7 +37,7 @@ int main(int argc, char **argv)
   float data;
   float height;
   int height_id;
-  float mask;
+  int mask;
   float t=0.0;
   float mask_thres;
   int mask_thres_id;
@@ -63,57 +64,92 @@ int main(int argc, char **argv)
   numtask =  numPoints/nprocs;
 
 
-   xy_dim = ni * nj;
-   x_dim = ni;
+  xy_dim = ni * nj;
+  x_dim = ni;
 
-   mask_thres_id = (int)  mask_thres/deltaz;
+  mask_thres_id = (int)  mask_thres/deltaz;
    
-   /* Set up osn */
+  /* Set up osn */
   open_simplex_noise(12345, &simpnoise);   /* Fixed seed, for now */
 
   
   for (i=0; i<numtask; i++)
-  {
-    point_id = (rank*numtask)+i;
-
-    /* Calculate point ids */
-    z_id =  point_id / xy_dim;
-    tmp_id =  point_id % xy_dim;
-    y_id = tmp_id/x_dim ;
-    x_id = tmp_id%x_dim ;
-
-    /* calculate grid positions */
-    xs = x_id * deltax;
-    ys = y_id * deltay;
-    zs = z_id * deltaz;
-
-    /* later implement smarter way that requires only the first xy to calulate height something like the following  */
-    /* if ( z_id == 0) */
-    /* { */
-    /*   /\* calculate height filed *\/ */
-    /*   height =  (float)open_simplex_noise2(simpnoise, xs*noisespacefreq, ys*noisespacefreq); */
-    /*   printf("Height: %f\n", height); */
-
-    /* } */
-
-    height =  (float)open_simplex_noise2(simpnoise, xs*noisespacefreq, ys*noisespacefreq);
-    data = (float)open_simplex_noise4(simpnoise, xs*noisespacefreq, ys*noisespacefreq, zs*noisespacefreq, t*noisetimefreq);
-
-    printf("Hi: rank=%d: %d of %d:  point_id=%d\n", rank, rank+1, nprocs, point_id+1);
-    printf("Point_id: (%d, %d, %d) = %f\n", x_id, y_id, z_id, data);
-    printf("Point_pos: (%f, %f, %f) = %f\n", xs, ys, zs, data);
-    printf("Height: %f\n", height);
-
-    height_id = (int) height/deltaz;
-    /* Calculate mask values */
-    if (height_id == mask_thres_id && height_id == z_id )
     {
-      mask = 2;  /* land surface */
-    }
-   
-   
-  }
+      point_id = (rank*numtask)+i;
 
+      /* Calculate point ids */
+      z_id =  point_id / xy_dim;
+      tmp_id =  point_id % xy_dim;
+      y_id = tmp_id/x_dim ;
+      x_id = tmp_id%x_dim ;
+
+      /* calculate grid positions */
+      xs = x_id * deltax;
+      ys = y_id * deltay;
+      zs = z_id * deltaz;
+
+      /* later implement smarter way that requires only the first xy to calulate height something like the following  */
+      /* if ( z_id == 0) */
+      /* { */
+      /*   /\* calculate height filed *\/ */
+      /*   height =  (float)open_simplex_noise2(simpnoise, xs*noisespacefreq, ys*noisespacefreq); */
+      /*   printf("Height: %f\n", height); */
+
+      /* } */
+
+      height =  (float)open_simplex_noise2(simpnoise, xs*noisespacefreq, ys*noisespacefreq);
+      data = (float)open_simplex_noise4(simpnoise, xs*noisespacefreq, ys*noisespacefreq, zs*noisespacefreq, t*noisetimefreq);
+
+      height_id = (int) height/deltaz;
+      
+      /* Calculate mask values */
+      if (height_id == z_id )
+      	{
+	   if (z_id > mask_thres_id)
+	    {
+	      
+	      mask = 4;  /* land surface above sea level*/
+	    }
+	   else if (z_id == mask_thres_id)
+	    {
+	      
+	      mask = 3;  /* land surface at sea level*/
+	    }
+	    else if (z_id < mask_thres_id)
+	    {
+	      
+	      mask = 2;  /* land surface below sea level*/
+	    }
+	}
+      else if (height_id > z_id )
+      	{
+      	  mask = 1;  /* below land surface */
+      	}
+       else if (height_id < z_id )
+      	{
+	   if (z_id > mask_thres_id)
+	    {
+	      
+	      mask = 4;  /* Atmosphere*/
+	    }
+	   else if (z_id == mask_thres_id)
+	    {
+	      
+	      mask = 0;  /* ocean at sea level*/
+	    }
+	    else if (z_id < mask_thres_id)
+	    {
+	      
+	      mask = -1;  /* ocean below sea level*/
+	    }
+      	}
+
+      printf("++++++++++++++++++++++++++++++++++++++++++++\n");      
+      printf("rank=%d: %d of %d:  point_id=%d\n", rank, rank+1, nprocs, point_id+1);
+      printf("Point_id: (%d, %d, %d) = %f\n", x_id, y_id, z_id, data);
+      printf("Point_pos: (%f, %f, %f) = %f\n", xs, ys, zs, data);
+      printf("Height: %f mask=%d\n", height, mask);
+    }
   
   open_simplex_noise_free(simpnoise);
   MPI_Finalize();

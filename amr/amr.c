@@ -8,30 +8,33 @@
 /* #include <limits.h> */
 /* #include <assert.h> */
 
-void refine(int t, float rpId, float thres, float value, int level, float x, float y, float z, float dx, float dy, float dz, struct osn_context *osn);
+void refine(int t, float rpId, float thres, float value, int level, float x, float y, float z, float dx, float dy, float dz, struct osn_context *osn, int maxLevel);
 void print_usage(int rank, const char *errstr);
 
 
 int main(int argc, char **argv)
 {
 
-  int i, numtask, block_id, realblock_id, tmp_id;
+  int i, a, numtask, block_id, realblock_id, tmp_id , t;                  /* loop indices */
+  int tt;                       /* Actual time step from tstart */
+  double noisespacefreq = 10;   /* Spatial frequency of noise */
+  double noisetimefreq = 0.25;  /* Temporal frequency of noise */
+  int tstart = 0;
+  int nt = 50;                  /* Number of time steps */
   int x_id, y_id, z_id;
   int xy_dim,  x_dim;
   float deltax, deltay, deltaz;
   float deltax_center, deltay_center, deltaz_center;
-
+  int maxLevel = 10;
   float threshold=0.0;
   
   int ni = 0;      /* Global grid size */
   int nj = 0;
   int nk = 0;
-
-  int unit_val = 2;
   
-  int nx = unit_val;
-  int ny = unit_val;
-  int nz = unit_val;
+  int nx = 0;
+  int ny = 0;
+  int nz = 0;
   
   int numBlocks;
   struct osn_context *simpnoise;    /* Open simplex noise context */
@@ -46,13 +49,53 @@ int main(int argc, char **argv)
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
+   /* Parse command line */
+  for(a = 1; a < argc; a++) {
+    if(!strcasecmp(argv[a], "--numblocks")) {
+      nx = ny = nz = atoi(argv[++a]);
+    }else if(!strcasecmp(argv[a], "--threshold")) {
+      threshold = strtof(argv[++a], NULL);
+    } else if(!strcasecmp(argv[a], "--levels")) {
+      maxLevel = atoi(argv[++a]);
+    } else if(!strcasecmp(argv[a], "--noisespacefreq")) {
+      noisespacefreq = strtod(argv[++a], NULL);
+    } else if(!strcasecmp(argv[a], "--noisetimefreq")) {
+      noisetimefreq = strtod(argv[++a], NULL);
+    } else if(!strcasecmp(argv[a], "--tsteps")) {
+      nt = atoi(argv[++a]);
+    } else if(!strcasecmp(argv[a], "--tstart")) {
+      tstart = atoi(argv[++a]);
+    } else {
+      if(rank == 0)   fprintf(stderr, "Option not recognized: %s\n\n", argv[a]);
+      print_usage(rank, NULL);
+      MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+  }
+
+  numBlocks = nx*ny*nz;
+  
+  /* Check arguments & proc counts */
+  if(nx < 2 || ny < 2 || nz < 2) {
+    print_usage(rank, "Error: blocksize not specified or incorrect");
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+  
+  if( numBlocks % nprocs) {
+    print_usage(rank, "Error: number of grid points is not evenly divisible "
+                "by number of processors.\n   This is required for proper load balancing.");
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+
+ if(maxLevel < 1 ) {
+    print_usage(rank, "Error: number of levels not specified or incorrect");
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+  
+  numtask =  numBlocks/nprocs;
+  
   ni = nx + 1;
   nj = ny + 1;
   nk = nz + 1;
-  
-  numBlocks = nx*ny*nz;
-  numtask =  numBlocks/nprocs;
-  
   
   deltax = 1.f/(ni-1);
   deltay = 1.f/(nj-1);
@@ -72,28 +115,28 @@ int main(int argc, char **argv)
 
   /* Set up osn */
   open_simplex_noise(12345, &simpnoise);   /* Fixed seed, for now */
-  for (i=0; i<numtask; i++)
-  {
-    block_id = (rank*numtask)+i;
-    /* realblock_id = block_id - 1; */
 
-    /* Calculate id for lower-left-front corner of blck */
-    /* z_id =  realblock_id / xy_dim; */
-    z_id =  block_id / xy_dim;
-    /* tmp_id = realblock_id - (k_id * xy_dim); */
-    /* tmp_id =  realblock_id % xy_dim; */
-    tmp_id =  block_id % xy_dim;
-    y_id = tmp_id/x_dim ;
-    x_id = tmp_id%x_dim ;
+  for(t = 0, tt = tstart; t < nt; t++, tt++) {
+    for (i=0; i<numtask; i++)
+      {
+	block_id = (rank*numtask)+i;
+	/* realblock_id = block_id - 1; */
 
-    xs = x_id * deltax;
-    ys = y_id * deltay;
-    zs = z_id * deltaz;
+	/* Calculate id for lower-left-front corner of blck */
+	z_id =  block_id / xy_dim;
+	tmp_id =  block_id % xy_dim;
+	y_id = tmp_id/x_dim ;
+	x_id = tmp_id%x_dim ;
+
+	xs = x_id * deltax;
+	ys = y_id * deltay;
+	zs = z_id * deltaz;
     
-    printf("Hi: rank=%d: %d of %d:  block_id=%d\n", rank, rank+1, nprocs, block_id+1);
-    printf("Point_id: (%d, %d, %d) \n", x_id, y_id, z_id);
-    refine(0, (block_id+1)/10.0, threshold, .1 + threshold, 0, xs, ys, zs, deltax, deltay, deltaz, simpnoise);
+	printf("Hi: rank=%d: %d of %d:  block_id=%d\n", rank, rank+1, nprocs, block_id+1);
+	printf("Point_id: (%d, %d, %d) \n", x_id, y_id, z_id);
+	refine(tt, (block_id+1)/10.0, threshold, .1 + threshold, 0, xs, ys, zs, deltax, deltay, deltaz, simpnoise, maxLevel);
     
+      }
   }
 
   open_simplex_noise_free(simpnoise);
@@ -102,7 +145,7 @@ int main(int argc, char **argv)
   return 0;
 }
 
-void refine(int t, float rpId, float thres, float value, int level, float x, float y, float z, float dx, float dy, float dz, struct osn_context *osn)
+void refine(int t, float rpId, float thres, float value, int level, float x, float y, float z, float dx, float dy, float dz, struct osn_context *osn, int maxLevel)
 {
   double noisespacefreq = 10;    /* Spatial frequency of noise */
   double noisetimefreq = 0.25;    /* Temporal frequency of noise */
@@ -115,7 +158,6 @@ void refine(int t, float rpId, float thres, float value, int level, float x, flo
   int above = 0;
   int split = 0;
   int exact = 0;
-  int maxLevel = 4;
   float refinePathID = 0;
   float new_refinePathID = 0;
   
@@ -227,7 +269,7 @@ void refine(int t, float rpId, float thres, float value, int level, float x, flo
     {
       new_refinePathID = refinePathID + (i+1)/10.0;
       printf("Refine on cell %d: (%f %f, %f) = %f ... refinePathID=%f\n", i, xpts[i], ypts[i], zpts[i], data[i], new_refinePathID);
-      refine(t, new_refinePathID, thres, center_val, level, xpts[i], ypts[i], zpts[i], dx/2, dy/2, dz/2, osn);
+      refine(t, new_refinePathID, thres, center_val, level, xpts[i], ypts[i], zpts[i], dx/2, dy/2, dz/2, osn, maxLevel);
     }
   }
   else
@@ -238,16 +280,32 @@ void refine(int t, float rpId, float thres, float value, int level, float x, flo
 }
 
 
+
+
 void print_usage(int rank, const char *errstr)
 {
   if(rank != 0)  return;
-
   if(errstr)
     fprintf(stderr, "%s\n\n", errstr);
-    fprintf(stderr, "Usage: mpi_launcher [-n|-np NPROCS] ./struct "
-	    "\n");
+  fprintf(stderr,
+	  "Usage: mpi_launcher [-n|-np NPROCS] ./arm --numblocks N [options]\n"
+	  "    NPROCS : # of tasks launched by MPI; may or may not be implied or required by system\n\n"
+	  "  Required:\n"
+	  "    --numblocks N : Specifies the initial enumber of blocks along each axes\n"
+	  "      N : Number of blocks along the I,J,K axes respectively\n"
+	  "      valid values are > 1\n\n" 
+	  "  Optional:\n"
+	  "    --maskthreshold T : Mask theshold; valid values are floats between -1.0 and 1.0 \n"
+	  "      T : threshold value; Default: 0.0\n"
+	  "    --levels L : Maximum levels of refinement; valid values are >0 \n"
+	  "      L : max refinmentment levels value; Default: 10.0\n"
+	  "    --noisespacefreq FNS : Spatial frequency of noise function\n"
+	  "      FNS : space frequency value; Default: 10.0\n"
+	  "    --noisetimefreq FNT : Temporal frequency of noise function\n"
+	  "      FNT : time frequency value;  Default: 0.25\n"
+	  "    --tsteps NT : Number of time steps; valid values are > 0\n"
+	  "    --tstart TS : Starting time step; valid values are > 0\n"
+	  );
 
-    /*## Add Output Modules' Usage String ##*/
-
-    /*## End of Output Module Usage Strings ##*/
+  /*## End of Output Module Usage Strings ##*/
 }

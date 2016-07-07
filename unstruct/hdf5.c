@@ -5,9 +5,16 @@
 
 #include <pdirs.h>
 
+
+uint64_t nelems_in[2];
+uint64_t nelems_out[2];
+
 void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t nptstask,
                float *xpts, float *ypts, float *zpts, uint64_t nelems3, uint64_t *conns3,
                uint64_t nelems2, uint64_t *conns2, char *varname, float *data);
+
+void
+write_xdmf_xml(char *fname, char *fname_xdmf, uint64_t npoints);
 
 static const int fnstrmax = 4095;
 
@@ -17,6 +24,8 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 {
     char dirname[fnstrmax+1];
     char fname[fnstrmax+1];
+    char rel_fname[fnstrmax+1];
+    char fname_xdmf[fnstrmax+1];
     int rank, nprocs;
     int timedigits = 4;
     MPI_Info info = MPI_INFO_NULL;
@@ -47,7 +56,9 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 
     chkdir1task(dirname, comm);
 
-    snprintf(fname, fnstrmax, "%s/r.h5", dirname);
+    snprintf(fname, fnstrmax, "unstruct.przm/t%0*d.d/r.h5", timedigits, tstep);
+    snprintf(rel_fname, fnstrmax, "t%0*d.d/r.h5", timedigits, tstep);
+    snprintf(fname_xdmf, fnstrmax, "unstruct.przm/t%0*d.d.xmf", timedigits, tstep);
 
     /* Set up file access property list with parallel I/O access */
     if( (plist_id = H5Pcreate(H5P_FILE_ACCESS)) < 0) {
@@ -61,7 +72,7 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
     }
     
     if( (file_id = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id)) < 0) {
-      fprintf(stderr, "writehdf5 error: could not open %s\n", fname);
+      fprintf(stderr, "writehdf5 error: could not open %s \n", fname);
       MPI_Abort(comm, 1);
     }
     
@@ -107,7 +118,6 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       err = H5Dwrite (did[1], H5T_NATIVE_FLOAT, memspace, filespace, plist_id, ypts);
       err = H5Dwrite (did[2], H5T_NATIVE_FLOAT, memspace, filespace, plist_id, zpts);
       
-
       err = H5Dclose(did[0]);
       err = H5Dclose(did[1]);
       err = H5Dclose(did[2]);
@@ -120,8 +130,6 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
     if(H5Pclose(plist_id) < 0)
       printf("writehdf5 error: Could not close property list \n");
 
-    uint64_t nelems_in[2];
-    uint64_t nelems_out[2];
     
     nelems_in[0] = nelems3 ;
     nelems_in[1] = nelems2 ;
@@ -230,9 +238,11 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       /* Create property list for collective dataset write. */
       plist_id = H5Pcreate(H5P_DATASET_XFER);
       H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-      err = H5Dwrite (did[0], H5T_NATIVE_FLOAT, memspace, filespace, plist_id, data);
+      if(H5Dwrite (did[0], H5T_NATIVE_FLOAT, memspace, filespace, plist_id, data) < 0) {
+	printf("writehdf5 error: Could not write HDF5 file \n");
+	MPI_Abort(comm, 1);
+      }
       
-
       if(H5Dclose(did[0]) ){
 	printf("writehdf5 error: Could not close HDF5 data space \n");
 	MPI_Abort(comm, 1);
@@ -246,24 +256,55 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	printf("writehdf5 error: Could not close HDF5 memory space \n");
 	MPI_Abort(comm, 1);
       }
-
-
- /*    dims[0] = 4; */
-/*     attr[0] = hasgrid; */
-/*     attr[1] = hasconn; */
-/*     attr[2] = hasconn2; */
-/*     attr[3] = nvars; */
-
-/*     space_id = H5Screate_simple (1, dims, NULL); */
-/*     attr_id = H5Acreate2(file_id, "hasgrid, hasconn, hasconn2, nvars", */
-/*     			 H5T_NATIVE_UINT, space_id, H5P_DEFAULT, H5P_DEFAULT ); */
-/*     err = H5Awrite(attr_id, H5T_NATIVE_UINT, attr); */
-/*     err = H5Aclose(attr_id); */
-/*     err = H5Sclose(space_id); */
-
+    }
 
     if(H5Fclose(file_id) != 0)
       printf("writehdf5 error: Could not close HDF5 file \n");
 
+    /* Create xdmf file for timestep */
+    if(rank == 0)
+      write_xdmf_xml(rel_fname, fname_xdmf, npoints);
+
 }
 
+void
+write_xdmf_xml(char *fname, char *fname_xdmf, uint64_t npoints)
+{
+    FILE *xmf = 0;
+ 
+    /*
+     * Open the file and write the XML description of the mesh.
+     */
+ 
+    xmf = fopen(fname_xdmf, "w");
+    fprintf(xmf, "<?xml version=\"1.0\" ?>\n");
+    fprintf(xmf, "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n");
+    fprintf(xmf, "<Xdmf Version=\"2.0\">\n");
+    fprintf(xmf, "<Domain>\n");
+    fprintf(xmf, "<Grid Name=\"Unstructured Mesh\">\n");
+    fprintf(xmf, "<Topology TopologyType=\"Wedge\" NumberOfElements=\"%d\">\n", nelems_out[0]);
+    fprintf(xmf, "<DataItem Dimensions=\"%d\" Format=\"HDF\">\n", nelems_out[0]*6);
+    fprintf(xmf, "%s:/conns3\n",fname);
+    fprintf(xmf, "</DataItem>\n");
+    fprintf(xmf, "</Topology>\n");
+    fprintf(xmf, "<Geometry GeometryType=\"X_Y_Z\">\n");
+    fprintf(xmf, "<DataItem Name=\"X\" Dimensions=\"%d\" Format=\"HDF\">\n", npoints);
+    fprintf(xmf, "%s:/grid points/x\n",fname);
+    fprintf(xmf, "</DataItem>\n");
+    fprintf(xmf, "<DataItem Name=\"Y\" Dimensions=\"%d\" Format=\"HDF\">\n", npoints);
+    fprintf(xmf, "%s:/grid points/y\n",fname);
+    fprintf(xmf, "</DataItem>\n");
+    fprintf(xmf, "<DataItem Name=\"Z\" Dimensions=\"%d\" Format=\"HDF\">\n", npoints);
+    fprintf(xmf, "%s:/grid points/z\n",fname);
+    fprintf(xmf, "</DataItem>\n");
+    fprintf(xmf, "</Geometry>\n");
+    fprintf(xmf, "<Attribute Name=\"Scalar\" AttributeType=\"Scalar\" Center=\"Node\">\n");
+    fprintf(xmf, "<DataItem Dimensions=\"%d\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", npoints);
+    fprintf(xmf, "%s:/vars\n", fname);
+    fprintf(xmf, "</DataItem>\n");
+    fprintf(xmf, "</Attribute>\n");
+    fprintf(xmf, "</Grid>\n");
+    fprintf(xmf, "</Domain>\n");
+    fprintf(xmf, "</Xdmf>\n");
+    fclose(xmf);
+}

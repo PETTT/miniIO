@@ -356,10 +356,12 @@ int main(int argc, char **argv)
 #ifdef HAS_HDF5
         if(hdf5out) {
             if(rank == 0) {
-                printf("      Writing hdf5...\n");   fflush(stdout);
+	      printf("      Writing hdf5...\n");   fflush(stdout);
             }
             writehdf5("unstruct", MPI_COMM_WORLD, t, npoints, nptstask, xpts, ypts, zpts,
                       nelems3, conns3, nelems2, conns2, "noise", data);
+
+	    
         }
 #endif
 

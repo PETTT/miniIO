@@ -16,6 +16,13 @@ OBJS += pvtp.o
 SRCS += pvtp.c
 CFLAGS += -DHAS_PVTP
 
+# ADIOS Full Output Module
+OBJS += adiosfull.o
+SRCS += adiosfull.c
+ADIOS_HOME ?= $(HOME)/ace4/adios
+CFLAGS += -DHAS_ADIOS -I$(ADIOS_HOME)/include
+LIBS += -L$(ADIOS_HOME)/lib -ladios -lmxml
+
 ### End of Output Modules ###
 
 CFLAGS += $(OSNINC)

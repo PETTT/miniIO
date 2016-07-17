@@ -19,6 +19,10 @@
 #  include "pvtp.h"
 #endif
 
+#ifdef HAS_ADIOS
+#  include "adiosfull.h"
+#endif
+
 /*## End of Output Module Includes ##*/
 
 void print_usage(int rank, const char *errstr)
@@ -182,6 +186,11 @@ int main(int argc, char **argv)
 #ifdef HAS_PVTP
     int pvtpout = 0;
 #endif
+
+#ifdef HAS_ADIOS
+    int adiosfullout = 1;
+    struct adiosfullinfo adios_nfo;
+#endif
  
     /*## End of Output Module Variables ##*/
 
@@ -314,9 +323,12 @@ int main(int argc, char **argv)
     ys = js * deltay;
     zs = ks * deltaz;
     /* add a ghost point to the far side of each axis for pvti & iso continuity */
+    /* note: this seems to confuse readability of formats that don't expect continuity, 
+     *       like ADIOS and ?, but it does not hurt for mere benchmarking of those */
     if(1 && crnk[0] < inp-1)   cni++;
     if(1 && crnk[1] < jnp-1)   cnj++;
     if(1 && crnk[2] < knp-1)   cnk++;
+
     /* Set up space filling curve for gaussmove
           The curve moves through each parallel task */
     if(mode == gaussmove || centertask) {
@@ -341,6 +353,14 @@ int main(int argc, char **argv)
     xdata = (float *) malloc((size_t)cni*cnj*cnk*sizeof(float));
 
     /*## Add Output Modules' Initialization Here ##*/
+
+#ifdef HAS_ADIOS
+    adiosfull_init(&adios_nfo, "cartiso", comm, rank, nprocs, nt,
+                   ni, nj, nk, is, cni, js, cnj, ks, cnk, 
+                   deltax, deltay, deltaz);
+    adiosfull_addvar(&adios_nfo, "value", data);
+    adiosfull_addvar(&adios_nfo, "noise", xdata);
+#endif
 
     /*## End of Output Module Initialization ##*/
  
@@ -440,6 +460,15 @@ int main(int argc, char **argv)
         }
 #endif
 
+#ifdef HAS_ADIOS
+        if(adiosfullout) {
+            if(rank == 0) {
+                printf("      Writing adios full...\n");   fflush(stdout);
+            }
+            adiosfull_write(&adios_nfo, tt);
+        }
+#endif
+
         /*## End of FULL OUTPUT Module Function Calls Per Timestep ##*/
 
         timer_tock(&fullouttime);
@@ -481,6 +510,10 @@ int main(int argc, char **argv)
     }
 
     /*## Add Output Modules' Cleanup Here ##*/
+
+#ifdef HAS_ADIOS
+    adios_finalize(rank);
+#endif
 
     /*## End of Output Module Cleanup ##*/
 

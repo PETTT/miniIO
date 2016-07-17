@@ -1,6 +1,16 @@
+# Mac & windows stuff
 .DS_Store
 .DS_Store?
 Thumbs.db
+# Python
 *.py[cod]
+# Compiler
 *.o
+# Vi/vim
+*.swp
+# Executables
+amr/amr
+cartiso/cartiso
+unstruct/unstruct
+struct/struct
 

@@ -20,7 +20,7 @@ struct adiosfullinfo {
     int64_t gid;
 };
 
-void adiosfull_init(struct adiosfullinfo *nfo, 
+void adiosfull_init(struct adiosfullinfo *nfo, char *method,
                char *name, MPI_Comm comm, int rank, int nprocs,
                int tsteps, int ni, int nj, int nk, int is, int cni, int js, int cnj,
                int ks, int cnk, float deltax, float deltay, float deltaz);

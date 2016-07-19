@@ -188,7 +188,7 @@ int main(int argc, char **argv)
 #endif
 
 #ifdef HAS_ADIOS
-    int adiosfullout = 1;
+    char *adiosfullmethod = NULL;
     struct adiosfullinfo adios_nfo;
 #endif
  
@@ -259,6 +259,12 @@ int main(int argc, char **argv)
 #ifdef HAS_PVTP
         else if(!strcasecmp(argv[a], "--pvtp")) {
             pvtpout = 1;
+        }
+#endif
+
+#ifdef HAS_ADIOS
+        else if(!strcasecmp(argv[a], "--adiosfull")) {
+            adiosfullmethod = argv[++a];
         }
 #endif
 
@@ -355,11 +361,12 @@ int main(int argc, char **argv)
     /*## Add Output Modules' Initialization Here ##*/
 
 #ifdef HAS_ADIOS
-    adiosfull_init(&adios_nfo, "cartiso", comm, rank, nprocs, nt,
-                   ni, nj, nk, is, cni, js, cnj, ks, cnk, 
-                   deltax, deltay, deltaz);
-    adiosfull_addvar(&adios_nfo, "value", data);
-    adiosfull_addvar(&adios_nfo, "noise", xdata);
+    if(adiosfullmethod) {
+        adiosfull_init(&adios_nfo, adiosfullmethod, "cartiso", comm, rank, nprocs, nt,
+                       ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, deltaz);
+        adiosfull_addvar(&adios_nfo, "value", data);
+        adiosfull_addvar(&adios_nfo, "noise", xdata);
+    }
 #endif
 
     /*## End of Output Module Initialization ##*/
@@ -461,7 +468,7 @@ int main(int argc, char **argv)
 #endif
 
 #ifdef HAS_ADIOS
-        if(adiosfullout) {
+        if(adiosfullmethod) {
             if(rank == 0) {
                 printf("      Writing adios full...\n");   fflush(stdout);
             }
@@ -512,7 +519,7 @@ int main(int argc, char **argv)
     /*## Add Output Modules' Cleanup Here ##*/
 
 #ifdef HAS_ADIOS
-    adios_finalize(rank);
+    if(adiosfullmethod)  adios_finalize(rank);
 #endif
 
     /*## End of Output Module Cleanup ##*/

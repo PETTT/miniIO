@@ -3,6 +3,7 @@
 output="--pvtp"
 #output="--pvti"
 #output="--pvti --pvtp"
+#output="--adiosfull MPI"
 
 tsk="2 2 2"
 fq="2 2 2"

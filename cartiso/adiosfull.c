@@ -40,10 +40,10 @@ void adiosfull_init(struct adiosfullinfo *nfo, char *method,
     nfo->maxvars = 1000;
     nfo->varnames = (char **) malloc(nfo->maxvars * sizeof(char *));
     nfo->datas = (float **) malloc(nfo->maxvars * sizeof(float *));
+    nfo->bufallocsize = 0;
     
     /* Set up ADIOS */ 
     adios_init_noxml(comm);
-    adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, 10);
     adios_declare_group(&nfo->gid, "cartiso", "", adios_flag_no);
     /*chkdir1task(dirname, comm);*/
     adios_select_method(nfo->gid, method, "", /*dirname*/"");
@@ -83,12 +83,22 @@ void adiosfull_write(struct adiosfullinfo *nfo, int tstep)
     uint64_t ijkelems, groupsize, totalsize;
     int64_t handle;
     int ret, i;
+    int bufneeded;
+
+    ijkelems = (uint64_t)nfo->cni * nfo->cnj * nfo->cnk;
+
+    /* Allocate buffer large enough for all data to write, if not done already */
+    bufneeded = (int)(ijkelems/(1024*1024)) * sizeof(float) * nfo->nvars;
+    bufneeded += bufneeded/50;   /* Add an extra 2% */
+    if(nfo->bufallocsize < bufneeded) {
+        adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, bufneeded);
+        nfo->bufallocsize = bufneeded;
+    }
 
     /* Set filename */
     snprintf(fname, fnstrmax, "%s.%0*d.bp", nfo->name, timedigits, tstep);
 
     /* Set sizes */
-    ijkelems = (uint64_t)nfo->cni * nfo->cnj * nfo->cnk;
     groupsize = sizeof(int) /*rank*/ + sizeof(int) /*tstep*/ + 
                 sizeof(int)*3 /*ni,nj,nk*/ + sizeof(int)*6 /*is-cnk*/ +
                 sizeof(float)*3 /*deltax,y,z*/ +

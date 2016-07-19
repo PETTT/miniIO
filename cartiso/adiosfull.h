@@ -17,6 +17,8 @@ struct adiosfullinfo {
     char **varnames;
     float **datas;
 
+    int bufallocsize;
+
     int64_t gid;
 };
 

@@ -12,7 +12,7 @@ OPT = -O3
 HDF5_DIR = /scr/brtnfld/trunk/hdf5
 
 # Flags, set as needed; add MPI flags if wrappers weren't available 
-CFLAGS = -Wall 
+CFLAGS =  
 CXXFLAGS = 
 FCFLAGS =
 LDFLAGS =  -lm

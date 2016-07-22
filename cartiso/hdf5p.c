@@ -246,7 +246,7 @@ write_xdmf_xml(char *fname, char *fname_xdmf, uint64_t npoints, char *xname)
     xmf = fopen(fname_xdmf, "w");
     fprintf(xmf, "<?xml version=\"1.0\" ?>\n");
     fprintf(xmf, "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n");
-    fprintf(xmf, "<Xdmf Version=\"2.0\">\n");
+    fprintf(xmf, "<Xdmf Version=\"3.0\">\n");
     fprintf(xmf, " <Domain>\n");
     fprintf(xmf, "  <Grid Name=\"Unstructured Mesh\">\n");
     fprintf(xmf, "    <Topology TopologyType=\"Triangle\" NumberOfElements=\"%ld\">\n", npoints);

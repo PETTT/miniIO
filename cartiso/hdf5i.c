@@ -145,7 +145,7 @@ write_xdmf_xml_value(char *fname, char *fname_xdmf, char *varname, float deltax,
     xmf = fopen(fname_xdmf, "w");
     fprintf(xmf, "<?xml version=\"1.0\" ?>\n");
     fprintf(xmf, "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n");
-    fprintf(xmf, "<Xdmf Version=\"2.0\">\n");
+    fprintf(xmf, "<Xdmf Version=\"3.0\">\n");
     fprintf(xmf, " <Domain>\n");
     fprintf(xmf, "  <Grid Name=\"Structured Grid\" GridType=\"Uniform\">\n");
     fprintf(xmf, "    <Topology TopologyType=\"3DCoRectMesh\" Dimensions=\"%d %d %d\"/>\n", ni, nj, nk );

@@ -1,5 +1,10 @@
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
 
 void writepvtp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs, 
                int tstep, uint64_t ntris, float *points, float *norms, 
                float *xvals, char *xname);
 
+void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs, 
+               int tstep, uint64_t ntris, float *points, float *norms, 
+	       float *xvals, char *xname);

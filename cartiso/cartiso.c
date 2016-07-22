@@ -85,12 +85,16 @@ void print_usage(int rank, const char *errstr)
     fprintf(stderr, "    --pvtp : Enable PVTP isosurface output.\n");
 #endif
 
+#ifdef HAS_HDF5
+    fprintf(stderr, "    --hdf5i : Enable HDF5 full output.\n");
+    fprintf(stderr, "    --hdf5p : Enable HDF5 isosurface output.\n");
+#endif
     /*## End of Output Module Usage Strings ##*/
 }
 
 void print_stats(MPI_Comm comm, int rank, int nprocs, uint64_t ntris)
 {
-    uint64_t *rntris;   /* All triangle counts */
+    uint64_t *rntris=NULL;   /* All triangle counts */
     int i;
     double Lmax = -1., Lbar = 0.;
     double Ltot = 0., Limb, Lstd = 0.;
@@ -159,7 +163,7 @@ int main(int argc, char **argv)
     modetype mode = sin2gauss;       /* Time animation mode */
     int gaussmovebackward = 0;       /* Whether gaussmove goes backward */
     struct sfc3_ctx sfc;     /* Space filling curve for gaussmove */
-    int sfc0i, sfc0j, sfc0k;    /* Space filling curve 1st of 2 points */
+    int sfc0i=0, sfc0j=0, sfc0k=0;    /* Space filling curve 1st of 2 points */
     struct isoinfo iso;       /* Isosurface context */
     struct osn_context *osn;    /* Open simplex noise context */
     float isothresh = -1.f;    /* Threshold of isosurface, -1 invalid */
@@ -182,7 +186,11 @@ int main(int argc, char **argv)
 #ifdef HAS_PVTP
     int pvtpout = 0;
 #endif
- 
+
+#ifdef HAS_HDF5
+    int hdf5iout = 0;
+    int hdf5pout = 0;
+#endif
     /*## End of Output Module Variables ##*/
 
     /* Init MPI */
@@ -250,6 +258,15 @@ int main(int argc, char **argv)
 #ifdef HAS_PVTP
         else if(!strcasecmp(argv[a], "--pvtp")) {
             pvtpout = 1;
+        }
+#endif
+
+#ifdef HAS_HDF5
+        else if(!strcasecmp(argv[a], "--hdf5i")) {
+	    hdf5iout = 1;
+        }
+        else if(!strcasecmp(argv[a], "--hdf5p")) {
+	    hdf5pout = 1;
         }
 #endif
 
@@ -405,7 +422,7 @@ int main(int argc, char **argv)
                     float sinusoid = ( sin(omegax*x) + sin(omegay*y) + \
                                        cos(omegaz*z) + sinshift ) * sinscale;
                     data[ii] = exp( -alpha*( (x-x0)*(x-x0)/sigmax2 + \
-                                             (y-y0)*(y-y0)/sigmay2 + \
+					     (y-y0)*(y-y0)/sigmay2 +	\
                                              (z-z0)*(z-z0)/sigmaz2 ) ) * sinusoid;
                     xdata[ii] = (float)open_simplex_noise4(osn, x * noisespacefreq, 
                                   y * noisespacefreq, z * noisespacefreq, tt*noisetimefreq);
@@ -426,7 +443,7 @@ int main(int argc, char **argv)
 
         /*## Add FULL OUTPUT Modules' Function Calls Per Timestep Here ##*/
 
-#ifdef HAS_PVTI 
+#ifdef HAS_PVTI
         if(pvtiout) {
             if(rank == 0) {
                 printf("      Writing pvti...\n");   fflush(stdout);
@@ -437,6 +454,20 @@ int main(int argc, char **argv)
             writepvti("cartiso", "noise", comm, rank, nprocs, tt, ni, nj, nk,
                       is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1, 
                       deltax, deltay, deltaz, xdata);
+        }
+#endif
+
+#ifdef HAS_HDF5
+        if(hdf5iout) {
+            if(rank == 0) {
+                printf("      Writing hdf5i...\n");   fflush(stdout);
+            }
+            writehdf5i("cartiso", "value", comm, rank, nprocs, tt, ni, nj, nk,
+                      is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
+		      deltax, deltay, deltaz, cni, cnj, cnk, data);
+/*             writehdf5i("cartiso", "noise", comm, rank, nprocs, tt, ni, nj, nk, */
+/*                       is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,  */
+/*                       deltax, deltay, deltaz, xdata); */
         }
 #endif
 
@@ -467,6 +498,16 @@ int main(int argc, char **argv)
                 printf("      Writing pvtp...\n");   fflush(stdout);
             }
             writepvtp("cartiso", "iso", comm, rank, nprocs, tt, iso.ntris,
+                      iso.points, iso.norms, iso.xvals, "noise");
+        }
+#endif
+
+#ifdef HAS_HDF5
+        if(hdf5pout) {
+            if(rank == 0) {
+                printf("      Writing hdf5p...\n");   fflush(stdout);
+            }
+            writehdf5p("cartiso", "iso", comm, rank, nprocs, tt, iso.ntris,
                       iso.points, iso.norms, iso.xvals, "noise");
         }
 #endif

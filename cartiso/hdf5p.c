@@ -6,15 +6,10 @@
 #include <string.h>
 #include <stdint.h>
 #include <mpi.h>
-#include <pdirs.h>
 
 #include "hdf5.h"
 
 static const int fnstrmax = 4095;
-
-void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs, 
-               int tstep, uint64_t ntris, float *points, float *norms, 
-	       float *xvals, char *xname);
 
 void
 write_xdmf_xml(char *fname, char *fname_xdmf, uint64_t npoints, char *xname);
@@ -23,23 +18,12 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
                int tstep, uint64_t ntris, float *points, float *norms, 
                float *xvals, char *xname)
 {
-    char dirname[fnstrmax+1];
     char fname[fnstrmax+1];
-    char rel_fname[fnstrmax+1];
     char fname_xdmf[fnstrmax+1];
-    char line[fnstrmax+1];
-    int rankdigits = nprocs > 1 ? (int)(log10(nprocs-1)+1.5) : 1;
     int timedigits = 4;
-    char typestr[] = "Float32";
-    char endianstr[] = "LittleEndian";
-    FILE *f;
-    MPI_File mf;
-    MPI_Status mstat;
     MPI_Info info = MPI_INFO_NULL;
-    int r;
     uint64_t *rntris;   /* All triangle counts from each task */
     uint64_t tot_tris;
-    int ret;
 
     hid_t file_id;
     hid_t plist_id;
@@ -71,7 +55,7 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 	}
 
       if( (file_id = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT)) < 0) {
-	fprintf(stderr, "writehdf5 error: could not create %s \n", fname);
+	fprintf(stderr, "writehdf5p error: could not create %s \n", fname);
 	MPI_Abort(comm, 1);
       }
 
@@ -116,22 +100,22 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 
     /* Set up file access property list with parallel I/O access */
     if( (plist_id = H5Pcreate(H5P_FILE_ACCESS)) < 0) {
-      printf("writehdf5 error: Could not create property list \n");
+      printf("writehdf5p error: Could not create property list \n");
       MPI_Abort(comm, 1);
     }
 
     if(H5Pset_fapl_mpio(plist_id, MPI_COMM_WORLD, info) < 0) {
-      printf("writehdf5 error: Could not create property list \n");
+      printf("writehdf5p error: Could not create property list \n");
       MPI_Abort(comm, 1);
     }
 
     if( (file_id = H5Fopen(fname, H5F_ACC_RDWR, plist_id)) < 0) {
-      fprintf(stderr, "writehdf5 error: could not open %s \n", fname);
+      fprintf(stderr, "writehdf5p error: could not open %s \n", fname);
       MPI_Abort(comm, 1);
     }
 
     if(H5Pclose(plist_id) < 0) {
-      printf("writehdf5 error: Could not close property list \n");
+      printf("writehdf5p error: Could not close property list \n");
       MPI_Abort(comm, 1);
     }
 
@@ -160,6 +144,10 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
 
     err = H5Dwrite(did, H5T_NATIVE_FLOAT, memspace, filespace, plist_id, points);
+    if( err < 0) {
+      fprintf(stderr, "writehdf5p error: could not write datset %s \n", "xyz");
+      MPI_Abort(comm, 1);
+    }
     err = H5Dclose(did);
     
     did = H5Dopen(group_id, "Normals",H5P_DEFAULT);
@@ -232,12 +220,12 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     err = H5Sclose(memspace);
 
     if(H5Pclose(plist_id) < 0)
-      printf("writehdf5 error: Could not close property list \n");
+      printf("writehdf5p error: Could not close property list \n");
 
     free(temparr);
     free(rntris);
     if(H5Fclose(file_id) != 0)
-      printf("writehdf5 error: Could not close HDF5 file \n");
+      printf("writehdf5p error: Could not close HDF5 file \n");
 
     /* Create xdmf file for timestep */
     if(rank == 0) {
@@ -261,23 +249,23 @@ write_xdmf_xml(char *fname, char *fname_xdmf, uint64_t npoints, char *xname)
     fprintf(xmf, "<Xdmf Version=\"2.0\">\n");
     fprintf(xmf, " <Domain>\n");
     fprintf(xmf, "  <Grid Name=\"Unstructured Mesh\">\n");
-    fprintf(xmf, "    <Topology TopologyType=\"Triangle\" NumberOfElements=\"%d\">\n", npoints);
-    fprintf(xmf, "      <DataItem Dimensions=\"%d\" Format=\"HDF\">\n", npoints*3);
+    fprintf(xmf, "    <Topology TopologyType=\"Triangle\" NumberOfElements=\"%ld\">\n", npoints);
+    fprintf(xmf, "      <DataItem Dimensions=\"%ld\" Format=\"HDF\">\n", npoints*3);
     fprintf(xmf, "      %s:/conn\n",fname);
     fprintf(xmf, "      </DataItem>\n");
     fprintf(xmf, "    </Topology>\n");
     fprintf(xmf, "    <Geometry GeometryType=\"XYZ\">\n");
-    fprintf(xmf, "       <DataItem Name=\"XYZ\" Dimensions=\"%d\" Format=\"HDF\">\n", 9*npoints);
+    fprintf(xmf, "       <DataItem Name=\"XYZ\" Dimensions=\"%ld\" Format=\"HDF\">\n", 9*npoints);
     fprintf(xmf, "        %s:/grid points/xyz\n",fname);
     fprintf(xmf, "       </DataItem>\n");
     fprintf(xmf, "    </Geometry>\n");
     fprintf(xmf, "    <Attribute Name=\"%s\" AttributeType=\"Scalar\" Center=\"Node\">\n", xname);
-    fprintf(xmf, "       <DataItem Dimensions=\"%d\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", npoints*3);
+    fprintf(xmf, "       <DataItem Dimensions=\"%ld\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", npoints*3);
     fprintf(xmf, "        %s:/%s\n", fname, xname);
     fprintf(xmf, "       </DataItem>\n");
     fprintf(xmf, "    </Attribute>\n");
     fprintf(xmf, "    <Attribute Name=\"Normals\" AttributeType=\"Vector\" Center=\"Node\">\n");
-    fprintf(xmf, "       <DataItem Dimensions=\"%d\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", npoints*9);
+    fprintf(xmf, "       <DataItem Dimensions=\"%ld\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", npoints*9);
     fprintf(xmf, "        %s:/grid points/Normals\n", fname);
     fprintf(xmf, "       </DataItem>\n");
     fprintf(xmf, "    </Attribute>\n");

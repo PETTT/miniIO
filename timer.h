@@ -45,7 +45,7 @@ void timer_tock(double *timer)
 void timer_collectstats(double timer, MPI_Comm comm, int destrank, struct timer_statinfo *stats)
 {
     int rank, nprocs, i;
-    double *rtimers;    /* All timers from ranks */
+    double *rtimers=NULL;    /* All timers from ranks */
 
     MPI_Comm_rank(comm, &rank);
     MPI_Comm_size(comm, &nprocs);

@@ -28,7 +28,7 @@ void writepvtp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     MPI_Status mstat;
     MPI_Info info = MPI_INFO_NULL;
     int r;
-    uint64_t *rntris;   /* All triangle counts from each task */
+    uint64_t *rntris=NULL;   /* All triangle counts from each task */
     int ret;
     
     /* Make directory for timestep */
@@ -100,8 +100,8 @@ void writepvtp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
                  "header_type=\"UInt64\">\n"
                  "  <PolyData>\n", endianstr);
         MPI_File_write(mf, line, strlen(line), MPI_CHAR, &mstat);
-        snprintf(line, fnstrmax, "    <Piece NumberOfPoints=\"%llu\" NumberOfVerts=\"0\" "
-                 "NumberOfLines=\"0\" NumberOfStrips=\"0\" NumberOfPolys=\"%llu\">\n",
+        snprintf(line, fnstrmax, "    <Piece NumberOfPoints=\"%"PRIu64"\" NumberOfVerts=\"0\" "
+                 "NumberOfLines=\"0\" NumberOfStrips=\"0\" NumberOfPolys=\"%"PRIu64"\">\n",
                  ntris*3, ntris);
         MPI_File_write(mf, line, strlen(line), MPI_CHAR, &mstat);
         snprintf(line, fnstrmax, "      <PointData Normals=\"Normals\">\n"
@@ -112,24 +112,24 @@ void writepvtp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
         if(xvals) {
             snprintf(line, fnstrmax, "        <DataArray type=\"%s\" Name=\"%s\" "
                      "NumberOfComponents=\"1\" "
-                     "format=\"appended\" offset=\"%llu\"/>\n", typestr, xname, offsets);
+                     "format=\"appended\" offset=\"%"PRIu64"\"/>\n", typestr, xname, offsets);
             MPI_File_write(mf, line, strlen(line), MPI_CHAR, &mstat);
             offsets += ntris*3*sizeof(float)+sizeof(uint64_t);   /* Add size of xdata array */
         }
         snprintf(line, fnstrmax, "      </PointData>\n"
                  "      <Points>\n"
                  "        <DataArray type=\"%s\" Name=\"Points\" NumberOfComponents=\"3\" "
-                 "format=\"appended\" offset=\"%llu\"/>\n"
+                 "format=\"appended\" offset=\"%"PRIu64"\"/>\n"
                  "      </Points>\n", typestr, offsets);
         MPI_File_write(mf, line, strlen(line), MPI_CHAR, &mstat);
         offsets += ntris*9*sizeof(float)+sizeof(uint64_t);   /* Add size of points */
         snprintf(line, fnstrmax, "      <Polys>\n"
                  "        <DataArray type=\"UInt64\" Name=\"connectivity\" "
-                 "format=\"appended\" offset=\"%llu\"/>\n", offsets);
+                 "format=\"appended\" offset=\"%"PRIu64"\"/>\n", offsets);
         MPI_File_write(mf, line, strlen(line), MPI_CHAR, &mstat);
         offsets += ntris*3*sizeof(uint64_t)+sizeof(uint64_t);   /* Add size of connections */
         snprintf(line, fnstrmax, "        <DataArray type=\"UInt64\" Name=\"offsets\" "
-                 "format=\"appended\" offset=\"%llu\"/>\n"
+                 "format=\"appended\" offset=\"%"PRIu64"\"/>\n"
                  "      </Polys>\n    </Piece>\n  </PolyData>\n"
                  "  <AppendedData encoding=\"raw\">\n"
                  "   _", offsets);

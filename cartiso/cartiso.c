@@ -21,6 +21,7 @@
 
 #ifdef HAS_ADIOS
 #  include "adiosfull.h"
+#  include "adiosiso.h"
 #endif
 
 /*## End of Output Module Includes ##*/
@@ -189,7 +190,9 @@ int main(int argc, char **argv)
 
 #ifdef HAS_ADIOS
     char *adiosfullmethod = NULL;
-    struct adiosfullinfo adios_nfo;
+    struct adiosfullinfo adiosfull_nfo;
+    char *adiosisomethod = NULL;
+    struct adiosisoinfo adiosiso_nfo;
 #endif
  
     /*## End of Output Module Variables ##*/
@@ -265,6 +268,9 @@ int main(int argc, char **argv)
 #ifdef HAS_ADIOS
         else if(!strcasecmp(argv[a], "--adiosfull")) {
             adiosfullmethod = argv[++a];
+        }
+        else if(!strcasecmp(argv[a], "--adiosiso")) {
+            adiosisomethod = argv[++a];
         }
 #endif
 
@@ -362,10 +368,15 @@ int main(int argc, char **argv)
 
 #ifdef HAS_ADIOS
     if(adiosfullmethod) {
-        adiosfull_init(&adios_nfo, adiosfullmethod, "cartiso", comm, rank, nprocs, nt,
+        adiosfull_init(&adiosfull_nfo, adiosfullmethod, "cartiso.full", comm, rank, nprocs, nt,
                        ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, deltaz);
-        adiosfull_addvar(&adios_nfo, "value", data);
-        adiosfull_addvar(&adios_nfo, "noise", xdata);
+        adiosfull_addvar(&adiosfull_nfo, "value", data);
+        adiosfull_addvar(&adiosfull_nfo, "noise", xdata);
+    }
+    if(adiosisomethod) {
+        adiosiso_init(&adiosiso_nfo, adiosisomethod, "cartiso.iso", comm, rank, nprocs, nt,
+                       ni, nj, nk, cni, cnj, cnk);
+        adiosiso_addxvar(&adiosiso_nfo, "noise");
     }
 #endif
 
@@ -472,7 +483,7 @@ int main(int argc, char **argv)
             if(rank == 0) {
                 printf("      Writing adios full...\n");   fflush(stdout);
             }
-            adiosfull_write(&adios_nfo, tt);
+            adiosfull_write(&adiosfull_nfo, tt);
         }
 #endif
 
@@ -507,6 +518,16 @@ int main(int argc, char **argv)
         }
 #endif
 
+#ifdef HAS_ADIOS
+        if(adiosisomethod) {
+            if(rank == 0) {
+                printf("      Writing adios iso...\n");   fflush(stdout);
+            }
+            adiosiso_write(&adiosiso_nfo, tt, iso.ntris, iso.points, iso.norms,
+                           &iso.xvals);
+        }
+#endif
+
         /*## End of ISOSURFACE OUTPUT Module Function Calls Per Timestep ##*/
 
         timer_tock(&isoouttime);
@@ -519,7 +540,8 @@ int main(int argc, char **argv)
     /*## Add Output Modules' Cleanup Here ##*/
 
 #ifdef HAS_ADIOS
-    if(adiosfullmethod)  adios_finalize(rank);
+    if(adiosfullmethod)  adiosfull_finalize(&adiosfull_nfo);
+    if(adiosisomethod) adiosiso_finalize(&adiosiso_nfo);
 #endif
 
     /*## End of Output Module Cleanup ##*/

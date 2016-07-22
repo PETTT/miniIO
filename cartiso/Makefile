@@ -7,21 +7,34 @@ SRCS = iso.c sfc.c cartiso.c
 ### Add Output Modules Here ###
 
 # PVTI Full Output Module
-OBJS += pvti.o
-SRCS += pvti.c
-CFLAGS += -DHAS_PVTI
+ENABLE_PVTI = 1
+ifeq ($(ENABLE_PVTI),1)
+  OBJS += pvti.o
+  SRCS += pvti.c
+  CFLAGS += -DHAS_PVTI
+endif
 
 # PVTP Isosurface Output Module
-OBJS += pvtp.o
-SRCS += pvtp.c
-CFLAGS += -DHAS_PVTP
+ENABLE_PVTP = 1
+ifeq ($(ENABLE_PVTP),1)
+  OBJS += pvtp.o
+  SRCS += pvtp.c
+  CFLAGS += -DHAS_PVTP
+endif
 
-# ADIOS Full Output Module
-OBJS += adiosfull.o
-SRCS += adiosfull.c
-ADIOS_HOME ?= $(HOME)/ace4/adios
-CFLAGS += -DHAS_ADIOS -I$(ADIOS_HOME)/include
-LIBS += -L$(ADIOS_HOME)/lib -ladios -lmxml
+# ADIOS Common
+ENABLE_ADIOS = 1
+ifeq ($(ENABLE_ADIOS),1)
+  ADIOS_HOME ?= $(HOME)/ace4/adios
+  CFLAGS += -DHAS_ADIOS -I$(ADIOS_HOME)/include
+  LIBS += -L$(ADIOS_HOME)/lib -ladios -lmxml
+  # ADIOS Full Output Module
+  OBJS += adiosfull.o
+  SRCS += adiosfull.c
+  # ADIOS Isosurface Output Module
+  OBJS += adiosiso.o
+  SRCS += adiosiso.c
+endif
 
 ### End of Output Modules ###
 

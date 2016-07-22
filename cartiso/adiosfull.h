@@ -31,3 +31,5 @@ void adiosfull_addvar(struct adiosfullinfo *nfo, char *varname, float *data);
 
 void adiosfull_write(struct adiosfullinfo *nfo, int tstep);
 
+void adiosfull_finalize(struct adiosfullinfo *nfo);
+

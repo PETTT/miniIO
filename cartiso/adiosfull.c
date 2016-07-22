@@ -44,7 +44,7 @@ void adiosfull_init(struct adiosfullinfo *nfo, char *method,
     
     /* Set up ADIOS */ 
     adios_init_noxml(comm);
-    adios_declare_group(&nfo->gid, "cartiso", "", adios_flag_no);
+    adios_declare_group(&nfo->gid, nfo->name, "", adios_flag_no);
     /*chkdir1task(dirname, comm);*/
     adios_select_method(nfo->gid, method, "", /*dirname*/"");
 
@@ -85,11 +85,16 @@ void adiosfull_write(struct adiosfullinfo *nfo, int tstep)
     int ret, i;
     int bufneeded;
 
+    /* Set sizes */
     ijkelems = (uint64_t)nfo->cni * nfo->cnj * nfo->cnk;
+    groupsize = sizeof(int) /*rank*/ + sizeof(int) /*tstep*/ + 
+                sizeof(int)*3 /*ni,nj,nk*/ + sizeof(int)*6 /*is-cnk*/ +
+                sizeof(float)*3 /*deltax,y,z*/ +
+                sizeof(float) * ijkelems * nfo->nvars;
 
     /* Allocate buffer large enough for all data to write, if not done already */
-    bufneeded = (int)(ijkelems/(1024*1024)) * sizeof(float) * nfo->nvars;
-    bufneeded += bufneeded/50;   /* Add an extra 2% */
+    bufneeded = (int)(groupsize/(1024*1024));
+    bufneeded += bufneeded/20 + 1;   /* Add an extra 5% & 1 to be sure */
     if(nfo->bufallocsize < bufneeded) {
         adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, bufneeded);
         nfo->bufallocsize = bufneeded;
@@ -97,12 +102,6 @@ void adiosfull_write(struct adiosfullinfo *nfo, int tstep)
 
     /* Set filename */
     snprintf(fname, fnstrmax, "%s.%0*d.bp", nfo->name, timedigits, tstep);
-
-    /* Set sizes */
-    groupsize = sizeof(int) /*rank*/ + sizeof(int) /*tstep*/ + 
-                sizeof(int)*3 /*ni,nj,nk*/ + sizeof(int)*6 /*is-cnk*/ +
-                sizeof(float)*3 /*deltax,y,z*/ +
-                sizeof(float) * ijkelems * nfo->nvars;
 
     /* Open & Write */
     ret = adios_open(&handle, nfo->name, fname, "w", nfo->comm);
@@ -130,5 +129,12 @@ void adiosfull_write(struct adiosfullinfo *nfo, int tstep)
         adios_write(handle, nfo->varnames[i], nfo->datas[i]);
 
     adios_close(handle);
+}
+
+void adiosfull_finalize(struct adiosfullinfo *nfo)
+{
+    free(nfo->varnames);
+    free(nfo->datas);
+    adios_finalize(nfo->rank);
 }
 

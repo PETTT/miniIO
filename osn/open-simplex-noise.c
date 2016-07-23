@@ -170,6 +170,7 @@ int open_simplex_noise(int64_t seed, struct osn_context **ctx)
 	int rc;
 	int16_t source[256];
 	int i;
+    int16_t ii;
 	int16_t *perm;
 	int16_t *permGradIndex3D;
 	int r;
@@ -189,8 +190,8 @@ int open_simplex_noise(int64_t seed, struct osn_context **ctx)
 	perm = (*ctx)->perm;
 	permGradIndex3D = (*ctx)->permGradIndex3D;
 
-	for (i = 0; i < 256; i++)
-		source[i] = (int16_t) i;
+	for (ii = 0; ii < 256; ii++)
+		source[ii] = ii;
 	seed = seed * 6364136223846793005LL + 1442695040888963407LL;
 	seed = seed * 6364136223846793005LL + 1442695040888963407LL;
 	seed = seed * 6364136223846793005LL + 1442695040888963407LL;

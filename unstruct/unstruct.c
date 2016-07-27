@@ -49,7 +49,9 @@ void print_usage(int rank, const char *errstr)
 #ifdef HAS_PRZM
     fprintf(stderr, "   --przm : Enable PRZM output.\n");
 #endif
-
+#ifdef HAS_HDF5
+    fprintf(stderr, "   --hdf5 : Enable HDF5 output.\n");
+#endif
     /*## End of Output Module Usage Strings ##*/
 }
 
@@ -166,6 +168,9 @@ int main(int argc, char **argv)
 #ifdef HAS_PRZM
     int przmout = 0;
 #endif
+#ifdef HAS_PRZM
+    int hdf5out = 0;
+#endif
 
     /*## End of Output Module Variables ##*/
 
@@ -203,6 +208,11 @@ int main(int argc, char **argv)
             przmout = 1;
         }
 #endif
+#ifdef HAS_HDF5
+        else if(!strcasecmp(argv[a], "--hdf5")) {
+            hdf5out = 1;
+        }
+#endif
 
         /*## End of Output Module Command Line Arguments ##*/
 
@@ -216,7 +226,7 @@ int main(int argc, char **argv)
     /* Check arguments */
     if(nprocs % 2 > 0 && nprocs > 1) {
         print_usage(rank, "Error: NPROCS is not even; that is required for load balancing");
-        MPI_Abort(MPI_COMM_WORLD, 1);
+        MPI_Abort(MPI_COMM_WORLD, 0);
     }
     if(npoints == 0 && nptstask == 0) {
         print_usage(rank, "Error: neither points or pointspertask specified, or there was\n"
@@ -289,7 +299,7 @@ int main(int argc, char **argv)
             conns3[ii++] = conns2[iuv+2] + nuv;
             conns3[ii++] = conns2[iuv++] + nuv2;
             conns3[ii++] = conns2[iuv++] + nuv2;
-            conns3[ii++] = conns2[iuv++] + nuv2;
+	    conns3[ii++] = conns2[iuv++] + nuv2;
         }
     }
 
@@ -341,6 +351,17 @@ int main(int argc, char **argv)
             }
             writeprzm("unstruct", MPI_COMM_WORLD, t, nptstask, xpts, ypts, zpts,
                       nelems3, conns3, nelems2, conns2, "noise", data);
+        }
+#endif       
+#ifdef HAS_HDF5
+        if(hdf5out) {
+            if(rank == 0) {
+	      printf("      Writing hdf5...\n");   fflush(stdout);
+            }
+            writehdf5("unstruct", MPI_COMM_WORLD, t, npoints, nptstask, xpts, ypts, zpts,
+                      nelems3, conns3, nelems2, conns2, "noise", data);
+
+	    
         }
 #endif
 

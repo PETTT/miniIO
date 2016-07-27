@@ -23,7 +23,7 @@ ifeq ($(ENABLE_PVTP),1)
 endif
 
 # ADIOS Common
-ENABLE_ADIOS = 1
+ENABLE_ADIOS = 0
 ifeq ($(ENABLE_ADIOS),1)
   ADIOS_HOME ?= $(HOME)/ace4/adios
   CFLAGS += -DHAS_ADIOS -I$(ADIOS_HOME)/include
@@ -34,6 +34,15 @@ ifeq ($(ENABLE_ADIOS),1)
   # ADIOS Isosurface Output Module
   OBJS += adiosiso.o
   SRCS += adiosiso.c
+endif
+
+### if HDF5_DIR set then enable HDF5 ###
+ifdef HDF5_DIR
+  LIBS = $(HDF5_DIR)/lib/libhdf5.a -lz -ldl
+  INCLUDE = -I$(HDF5_DIR)/include
+  OBJS += hdf5i.o hdf5p.o
+  SRCS += hdf5i.c hdf5p.c
+  CFLAGS += -DHAS_HDF5
 endif
 
 ### End of Output Modules ###
@@ -56,7 +65,7 @@ sfc: sfc.c
 	cc $(CFLAGS) -DSFC_SERPENTINE_TEST -o sfc sfc.c
 
 .c.o:
-	$(CC) $(CFLAGS) -c $<
+	$(CC) $(CFLAGS) -c $< $(INCLUDE)
 
 # DO NOT DELETE
 

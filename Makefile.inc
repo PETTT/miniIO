@@ -8,12 +8,15 @@ FC = mpif90
 OPT = -O3
 #DBG = -g
 
+# Add HDF5 library, set to install directory
+HDF5_DIR = /scr/brtnfld/trunk/hdf5
+
 # Flags, set as needed; add MPI flags if wrappers weren't available 
-CFLAGS = 
+CFLAGS =  
 CXXFLAGS = 
-FCFLAGS = 
-LDFLAGS = 
-LIBS = 
+FCFLAGS =
+LDFLAGS =  -lm
+LIBS =
 
 # You should probably leave the rest below alone
 

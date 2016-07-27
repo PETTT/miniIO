@@ -29,7 +29,7 @@ void writepvti(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     MPI_Info info = MPI_INFO_NULL;
     int r;
     int subset[6] = { is, ie, js, je, ks, ke };  /* Local point indices */
-    int *rsubsets;   /* All point indices from each task */
+    int *rsubsets = NULL;   /* All point indices from each task */
     int ret;
     uint64_t ijkelems;
     int32_t ijkbytes32;

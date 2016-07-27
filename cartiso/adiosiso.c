@@ -84,7 +84,7 @@ void adiosiso_write(struct adiosisoinfo *nfo, int tstep, uint64_t ntris, float *
 
     /* Allocate buffer large enough for all data to write, if not done already */
     bufneeded = (int)(groupsize/(1024*1024));
-    bufneeded += bufneeded/20 + 1;   /* Add an extra 5% & 1 to be sure */
+    bufneeded += bufneeded/10 + 5;   /* Add an extra 10% & 5MB to be sure */
     if(nfo->bufallocsize < bufneeded) {
         adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, bufneeded);
         nfo->bufallocsize = bufneeded;

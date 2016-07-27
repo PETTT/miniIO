@@ -90,11 +90,11 @@ void adiosfull_write(struct adiosfullinfo *nfo, int tstep)
     groupsize = sizeof(int) /*rank*/ + sizeof(int) /*tstep*/ + 
                 sizeof(int)*3 /*ni,nj,nk*/ + sizeof(int)*6 /*is-cnk*/ +
                 sizeof(float)*3 /*deltax,y,z*/ +
-                sizeof(float) * ijkelems * nfo->nvars;
+                sizeof(float) * ijkelems * nfo->nvars + 1024;
 
     /* Allocate buffer large enough for all data to write, if not done already */
     bufneeded = (int)(groupsize/(1024*1024));
-    bufneeded += bufneeded/20 + 1;   /* Add an extra 5% & 1 to be sure */
+    bufneeded += bufneeded/10 + 2;   /* Add an extra 10% & 2MB to be sure */
     if(nfo->bufallocsize < bufneeded) {
         adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, bufneeded);
         nfo->bufallocsize = bufneeded;

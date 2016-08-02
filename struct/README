@@ -1,0 +1,3 @@
+TEST
+
+mpirun --np 2 ./struct --size 2 2 2 --tsteps 1

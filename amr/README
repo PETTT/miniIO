@@ -1,0 +1,4 @@
+TEST
+
+mpirun -np 4 ./amr --blockdim 10 --levels 3 --tsteps 1
+

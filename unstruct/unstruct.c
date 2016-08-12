@@ -14,6 +14,10 @@
 #  include "przm.h"
 #endif
 
+#ifdef HAS_ADIOS
+#  include "adiosunstruct.h"
+#endif
+
 /*## End of Output Module Includes ##*/
 
 void print_usage(int rank, const char *errstr)
@@ -168,7 +172,13 @@ int main(int argc, char **argv)
 #ifdef HAS_PRZM
     int przmout = 0;
 #endif
-#ifdef HAS_PRZM
+
+#ifdef HAS_ADIOS
+    char *adiosmethod = NULL;
+    struct adiosinfo adiosnfo;
+#endif
+
+#ifdef HAS_HDF5
     int hdf5out = 0;
 #endif
 
@@ -208,6 +218,13 @@ int main(int argc, char **argv)
             przmout = 1;
         }
 #endif
+
+#ifdef HAS_ADIOS
+        else if(!strcasecmp(argv[a], "--adios")) {
+            adiosmethod = argv[++a];
+        }
+#endif
+
 #ifdef HAS_HDF5
         else if(!strcasecmp(argv[a], "--hdf5")) {
             hdf5out = 1;
@@ -311,11 +328,22 @@ int main(int argc, char **argv)
 
     /*## Add Output Modules' Initialization Here ##*/
 
+#ifdef HAS_ADIOS
+    if(adiosmethod) {
+        adiosunstruct_init(&adiosnfo, adiosmethod, "unstruct.out", MPI_COMM_WORLD, 
+                           rank, nprocs, nt, nptstask, nelems3, nelems2);
+        adiosunstruct_addvar(&adiosnfo, "noise");
+    }
+#endif
+
     /*## End of Output Module Initialization ##*/
 
     /* Main loops */
     for(t = 0; t < nt; t++) {
         float tpar = (float)t / (nt-1);    /* Time anim. parameter [0,1] */
+        if(rank == 0) {
+            printf("t = %d\n", t);   fflush(stdout);
+        }
 
         /* Generate grid points with superquadric */
         uround = (1-tpar)*uround0 + tpar*uround1;
@@ -353,10 +381,20 @@ int main(int argc, char **argv)
                       nelems3, conns3, nelems2, conns2, "noise", data);
         }
 #endif       
+
+#ifdef HAS_ADIOS
+        if(adiosmethod) {
+            if(rank == 0) {
+                printf("      Writing adios...\n");    fflush(stdout);
+            }
+            adiosunstruct_write(&adiosnfo, t, xpts, ypts, zpts, conns3, conns2, &data);
+        }
+#endif
+
 #ifdef HAS_HDF5
         if(hdf5out) {
             if(rank == 0) {
-	      printf("      Writing hdf5...\n");   fflush(stdout);
+                printf("      Writing hdf5...\n");   fflush(stdout);
             }
             writehdf5("unstruct", MPI_COMM_WORLD, t, npoints, nptstask, xpts, ypts, zpts,
                       nelems3, conns3, nelems2, conns2, "noise", data);
@@ -371,10 +409,14 @@ int main(int argc, char **argv)
 
     /*## Add Output Modules' Cleanup Here ##*/
 
+#ifdef HAS_ADIOS
+    if(adiosmethod) 
+        adiosunstruct_finalize(&adiosnfo);
+#endif
+
     /*## End of Output Module Cleanup ##*/
 
     /* Cleanup */
-
     open_simplex_noise_free(osn);
     free(xpts);  free(ypts);  free(zpts);
     free(conns2);  free(conns3);

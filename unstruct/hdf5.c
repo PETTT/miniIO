@@ -45,9 +45,9 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
     /* Make dir for all output and subdir for timestep */
-    snprintf(dirname, fnstrmax, "%s.przm", name);
+    snprintf(dirname, fnstrmax, "%s.hdf5.d", name);
     mkdir1task(dirname, comm);
-    snprintf(dirname, fnstrmax, "%s.przm/t%0*d.d", name, timedigits, tstep);
+    snprintf(dirname, fnstrmax, "%s.hdf5.d/t%0*d.d", name, timedigits, tstep);
     mkdir1task(dirname, comm);
 
     /* Set up MPI info */
@@ -56,9 +56,9 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 
     chkdir1task(dirname, comm);
 
-    snprintf(fname, fnstrmax, "unstruct.przm/t%0*d.d/r.h5", timedigits, tstep);
+    snprintf(fname, fnstrmax, "unstruct.hdf5.d/t%0*d.d/r.h5", timedigits, tstep);
     snprintf(rel_fname, fnstrmax, "t%0*d.d/r.h5", timedigits, tstep);
-    snprintf(fname_xdmf, fnstrmax, "unstruct.przm/t%0*d.d.xmf", timedigits, tstep);
+    snprintf(fname_xdmf, fnstrmax, "unstruct.hdf5.d/t%0*d.d.xmf", timedigits, tstep);
 
     /* Set up file access property list with parallel I/O access */
     if( (plist_id = H5Pcreate(H5P_FILE_ACCESS)) < 0) {

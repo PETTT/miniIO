@@ -6,7 +6,7 @@ FC = mpif90
 
 # Optimization and debugging flags, (un)comment as desired
 OPT = -O3
-#DBG = -g
+DBG = -g
 
 # Add HDF5 library, set to install directory
 HDF5_DIR ?= /opt/local
@@ -15,8 +15,8 @@ HDF5_DIR ?= /opt/local
 CFLAGS =  
 CXXFLAGS = 
 FCFLAGS =
-LDFLAGS = -lm
-LIBS =
+LDFLAGS = 
+LIBS = -lm
 
 # You should probably leave the rest below alone
 

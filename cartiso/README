@@ -1,4 +1,7 @@
 
+Copyright (c) DoD HPCMP PETTT.  All rights reserved.  
+See LICENSE file for details.
+
 #. Building
 
 One may build from the parent miniIO directory or within this directory.

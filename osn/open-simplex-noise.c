@@ -12,6 +12,13 @@
  * - Changed seed-based constructor to be independent
  *   of any particular randomization library, so results
  *   will be the same when ported to other languages.
+ *
+ * Copyright (c) DoD HPCMP PETTT.  All rights reserved.
+ * See LICENSE file for details.
+ * New copyright, applies to all modifications since the original copyright.
+ *
+ * Original Copyright: 
+ * This is free and unencumbered software released into the public domain.
  */
 #include <math.h>
 #include <stdlib.h>

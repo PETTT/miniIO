@@ -1,5 +1,8 @@
 /* 
  * A set of parallel timer convenience functions
+ *
+ * Copyright (c) DoD HPCMP PETTT.  All rights reserved.  
+ * See LICENSE file for details.
  */
 
 #include <math.h>

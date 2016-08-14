@@ -1,6 +1,10 @@
 # ParaView Programmable Source: vtkUnstructuredGrid
 # Read a przm output collection
 # For now, reads parallel output serially
+#
+# Copyright (c) DoD HPCMP PETTT.  All rights reserved.  
+# See LICENSE file for details.
+
 from paraview import vtk
 import numpy as np
 from glob import glob

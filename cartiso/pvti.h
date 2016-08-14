@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) DoD HPCMP PETTT.  All rights reserved.  
+ * See LICENSE file for details.
+ */
+
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 

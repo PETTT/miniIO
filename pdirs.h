@@ -1,6 +1,9 @@
 /*
  * Functions to create and check directories from an MPI code
  * on a parallel file system
+ *
+ * Copyright (c) DoD HPCMP PETTT.  All rights reserved.  
+ * See LICENSE file for details.
  */
 
 #include <sys/stat.h>

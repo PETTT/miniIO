@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) DoD HPCMP PETTT.  All rights reserved.  
+ * See LICENSE file for details.
+ */
 
 struct sfc3_ctx {
     int ni, nj, nk;   /* Total size of space */

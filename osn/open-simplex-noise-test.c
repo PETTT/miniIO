@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) DoD HPCMP PETTT.  All rights reserved.
+ * See LICENSE file for details.
+ * New copyright, applies to all modifications since the original copyright.
+ *
+ * Original Copyright: 
+ * This is free and unencumbered software released into the public domain.
+ */
+
 #include <stdio.h>
 #if ((__STDC_VERSION__ >= 199901L) || (_MSC_VER))
 	#include <stdint.h>

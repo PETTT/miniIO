@@ -50,5 +50,8 @@ depend:
 
 # DO NOT DELETE
 
-unstruct.o: ../osn/open-simplex-noise.h przm.h
+unstruct.o: ../osn/open-simplex-noise.h przm.h adiosunstruct.h
 przm.o: ../pdirs.h przm.h
+adiosunstruct.o: adiosunstruct.h
+hdf5.o: ../pdirs.h
+

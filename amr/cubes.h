@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) DoD HPCMP PETTT.  All rights reserved.
+ * See LICENSE file for details.
+ */
+
 typedef struct cubeInfo {
   int debug;
   uint64_t ncubes;       /* Number of cubes */

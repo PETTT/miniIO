@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) DoD HPCMP PETTT.  All rights reserved.
+ * See LICENSE file for details.
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>

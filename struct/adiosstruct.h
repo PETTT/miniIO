@@ -1,8 +1,3 @@
-/*
- * Copyright (c) DoD HPCMP PETTT.  All rights reserved.
- * See LICENSE file for details.
- */
-
 #include <mpi.h>
 #include <adios.h>
 
@@ -12,6 +7,9 @@ struct adiosstructinfo {
   int rank;
   int nprocs;
   int tsteps;
+  int ni, nj, nk;
+  int is, cni, js, cnj, ks, cnk;
+  float deltax, deltay, deltaz;
   
   int nvars;
   int maxvars;
@@ -23,11 +21,14 @@ struct adiosstructinfo {
   int64_t gid;
 };
 
-void adiosstruct_init(struct adiosstructinfo *nfo, char *method, char *name, MPI_Comm comm, int rank, int nprocs, int tsteps);
+void adiosstruct_init(struct adiosstructinfo *nfo, char *method,
+               char *name, MPI_Comm comm, int rank, int nprocs,
+               int tsteps, int ni, int nj, int nk, int is, int cni, int js, int cnj,
+               int ks, int cnk, float deltax, float deltay, float deltaz);
 
 void adiosstruct_addxvar(struct adiosstructinfo *nfo, char *varname, float *data);
 
-void adiosstruct_write(struct adiosstructinfo *nfo, int tstep, uint64_t cnpoints, uint64_t npoints, uint64_t cstart, uint64_t *mask);
+void adiosstruct_write(struct adiosstructinfo *nfo, int tstep, int *mask);
   
 void adiosstruct_finalize(struct adiosstructinfo *nfo);
 

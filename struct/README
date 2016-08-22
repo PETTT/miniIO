@@ -1,3 +1,19 @@
-TEST
+TEST eaxmples
 
-mpirun --np 2 ./struct --size 2 2 2 --tsteps 1
+# Smallest test (test1):
+mpirun --np 8 ./struct --tasks 2 2 2 --size 2 2 2 --tsteps 1
+
+# Smallest test with debuging statements (test1_debug):
+mpirun --np 2 ./struct -task 2 2 2 --size 2 2 2 --tsteps 1 -debug
+
+# Smallest test with default values passed same as test1:
+mpirun --np 8 ./struct --tasks 2 2 2 --size 2 2 2 --tsteps 1 --maskthreshold 0 --noisespacefreq 10 --noisetimefreq .25
+
+# larger grid
+mpirun --np 8 ./struct --tasks 2 2 2 --size 100 100 100 --tsteps 1 --maskthreshold 0 --noisespacefreq 10 --noisetimefreq .25
+
+
+# convert bp to nectcdf  
+~/ace4/adios/bin/bp2ncd struct.0000.bp
+
+

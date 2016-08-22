@@ -1,8 +1,3 @@
-/*
- * Copyright (c) DoD HPCMP PETTT.  All rights reserved.
- * See LICENSE file for details.
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
@@ -18,38 +13,41 @@
 #  include "adiosstruct.h"
 #endif
 
-static const int fnstrmax = 4095;
-
 void print_usage(int rank, const char *errstr);
 
 int main(int argc, char **argv)
 {
   int debug=0;
-  int a, i, t;                  /* loop indices */
+  int a, i, j, k, t;                  /* loop indices */
   int tt;                       /* Actual time step from tstart */
-  double noisespacefreq = 10;   /* Spatial frequency of noise */
+  float x, y, z;
+  double noisespacefreq = 10.0;   /* Spatial frequency of noise */
   double noisetimefreq = 0.25;  /* Temporal frequency of noise */
   int tstart = 0;
-  int nt = 50;                  /* Number of time steps */
+  int nt = 10;                  /* Number of time steps */
   int ni = 0;                   /* Global grid size */
   int nj = 0;
   int nk = 0;
-  int numtask;                  /* task per processor */
-  int point_id, tmp_id;         /* grid point id */
-  int x_id, y_id, z_id;         /* point id along each axis */
-  int xy_dim,  x_dim;
+  int inp = 0;      /* Number of tasks in i */
+  int jnp = 0;      /* Number of tasks in j */
+  int knp = 0;      /* Number of tasks in k */
+  int numtask;                   /* task per processor */
+  int point_id, tmp_id;          /* grid point id */
+  int x_index, y_index, z_index; /* point index along each axis */
+  int xy_dims,  x_dims;
   float deltax, deltay, deltaz; 
   int numPoints;
   float *data;
   float *height;
-  int height_id;
-  uint64_t *ola_mask;
+  int height_index;
+  int *ola_mask;
   float mask_thres=0.0;             /* mask threshold */
-  int mask_thres_id;
+  int mask_thres_index;
   struct osn_context *simpnoise;    /* Open simplex noise context */
   
   /* MPI vars */
   MPI_Comm comm = MPI_COMM_WORLD;
+  int cprocs[3], cpers[3], crnk[3];  /* MPI Cartesian info */
   int rank, nprocs;
   int cni, cnj, cnk;   /* Points in this task */
   int is, js, ks;     /* Global index starting points */
@@ -67,12 +65,16 @@ int main(int argc, char **argv)
 #endif
 
   MPI_Init(&argc, &argv);
-  MPI_Comm_rank(comm, &rank);
-  MPI_Comm_size(comm, &nprocs);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
   /* Parse command line */
   for(a = 1; a < argc; a++) {
-    if(!strcasecmp(argv[a], "--size")) {
+    if(!strcasecmp(argv[a], "--tasks")) {
+            inp = atoi(argv[++a]);
+            jnp = atoi(argv[++a]);
+            knp = atoi(argv[++a]);
+    } else if(!strcasecmp(argv[a], "--size")) {
       ni = atoi(argv[++a]);
       nj = atoi(argv[++a]);
       nk = atoi(argv[++a]);
@@ -91,7 +93,7 @@ int main(int argc, char **argv)
     } else {
       if(rank == 0)   fprintf(stderr, "Option not recognized: %s\n\n", argv[a]);
       print_usage(rank, NULL);
-      MPI_Abort(comm, 1);
+      MPI_Abort(MPI_COMM_WORLD, 1);
     }
   }
 
@@ -99,152 +101,161 @@ int main(int argc, char **argv)
   npoints  = numPoints;
  
   /* Check arguments & proc counts */
-  if(ni < 2 || nj < 2 || nk < 2) {
-    print_usage(rank, "Error: size not specified or incorrect");
-    MPI_Abort(comm, 1);
+  if(inp < 1 || jnp < 1 || knp < 1) {
+    print_usage(rank, "Error: tasks not specified or incorrect");
+    MPI_Abort(MPI_COMM_WORLD, 1);
   }
-  
-  if( numPoints % nprocs) {
-    print_usage(rank, "Error: number of grid points is not evenly divisible "
-                "by number of processors.\n   This is required for proper load balancing.");
-    MPI_Abort(comm, 1);
+  if(ni < 1 || nj < 1 || nk < 1) {
+    print_usage(rank, "Error: size not specified or incorrect");
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+  if(inp*jnp*knp != nprocs) {
+    print_usage(rank, "Error: product of tasks does not equal total MPI tasks");
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+  if(ni % inp || nj % jnp || nk % knp) {
+    print_usage(rank, "Error: number of points on an axis is not evenly divisible "
+                "by axis tasks.\n   This is required for proper load balancing.");
+    MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
   if(nt < 1 ) {
     print_usage(rank, "Error: number of timesteps not specified or incorrect");
-    MPI_Abort(comm, 1);
+    MPI_Abort(MPI_COMM_WORLD, 1);
   }
-  
-  cni = ni / nprocs;
-  cnj = nj / nprocs;
-  cnk = nk / nprocs;
- 
-  numtask =  numPoints/nprocs;
-  cnpoints  = numtask;
-  
-  xy_dim = ni * nj;
-  x_dim = ni;
-  
+
+   /* Set up Cartesian communicator */
+  cprocs[0] = inp;  cprocs[1] = jnp;  cprocs[2] = knp;
+  cpers[0] = 0;  cpers[1] = 0;  cpers[2] = 0;    /* No periodicity */
+  MPI_Cart_create(MPI_COMM_WORLD, 3, cprocs, cpers, 1, &comm);
+  MPI_Comm_rank(comm, &rank);
+  MPI_Cart_coords(comm, rank, 3, crnk);
+
   deltax = 1.f/(ni-1);
   deltay = 1.f/(nj-1);
   deltaz = 1.f/(nk-1);
-  
-  mask_thres_id = (int) mask_thres/deltaz;
+  cni = ni / inp;
+  cnj = nj / jnp;
+  cnk = nk / knp;
+  is = crnk[0] * cni;
+  js = crnk[1] * cnj;
+  ks = crnk[2] * cnk;
+  xs = is * deltax;
+  ys = js * deltay;
+  zs = ks * deltaz;
+
+  xy_dims = ni * nj;
+  x_dims = ni;
+
+  /* mask_thres_index = (int) mask_thres/deltaz; */
+  mask_thres_index = (int) ( ((mask_thres+1)/2) * (nk-1));
 
   if (debug) {
+    /* printf("rank_cord(%d,%d,%d) rank=%d: %d of %d\n", crnk[0], crnk[1], crnk[2] , rank, rank+1, nprocs); */
     printf("Grid size= (%d x %d x %d) = %llu points\n", ni, nj, nk, npoints);
-    printf("Mask theshold = %f   mask threshold id = %d\n", mask_thres, mask_thres_id);
+    /* printf("Grid deltas= (%f x %f x %f)\n", deltax, deltay, deltaz); */
+    printf("Mask theshold = %f   mask threshold index = %d\n", mask_thres, mask_thres_index);
   }
   
   /* Set up osn */
   open_simplex_noise(12345, &simpnoise);   /* Fixed seed, for now */
 
   /* Allocate arrays */
-  data = (float *) malloc((size_t)numtask*sizeof(float));
-  height = (float *) malloc((size_t)numtask*sizeof(float));
-  ola_mask = (uint64_t *) malloc((size_t)numtask*sizeof(uint64_t));
-  /* data_vars = 3; */
+  data = (float *) malloc((size_t)cni*cnj*cnk*sizeof(float));
+  height = (float *) malloc((size_t)cni*cnj*cnk*sizeof(float));
+  ola_mask = (int *) malloc((size_t)cni*cnj*cnk*sizeof(int));
 
   /* init ADIOS */
 #ifdef HAS_ADIOS
 
-  adiosstruct_init(&adiosstruct_nfo, adios_method, adios_groupname, comm, rank, nprocs, nt);
+  adiosstruct_init(&adiosstruct_nfo, adios_method, adios_groupname, comm, rank, nprocs, nt,
+                       ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, deltaz);
   adiosstruct_addxvar(&adiosstruct_nfo, "data", data);
   adiosstruct_addxvar(&adiosstruct_nfo, "height", height);
   
-  /* adios_define_var(adios_groupid, "ola_mask", "", adios_integer, "numtask", */
-  /* 		   "numPoints", "var_start"); */
 #endif
-  
+
   for(t = 0, tt = tstart; t < nt; t++, tt++) {
-    cstart = rank*numtask;
-    for (i=0; i<numtask; i++) {
-      point_id = (rank*numtask)+i;
-    
-      /* Calculate point ids */
-      z_id =  point_id / xy_dim;
-      tmp_id =  point_id % xy_dim;
-      y_id = tmp_id/x_dim ;
-      x_id = tmp_id%x_dim ;
+    size_t ii;     /* data index */
 
-      /* calculate grid positions */
-      xs = x_id * deltax;
-      ys = y_id * deltay;
-      zs = z_id * deltaz;
+    /* Spatial loops */
+    z = zs;
+    for(k = 0, ii = 0; k < cnk; k++) {
+      y = ys;
+      for(j = 0; j < cnj; j++) {
+	x = xs;
+	for(i = 0; i < cni; i++, ii++) {
+	  x_index = (int) (x/deltax);
+	  y_index = (int) (y/deltay);
+	  z_index = (int) (z/deltaz);
 
-      /* later implement smarter way that requires only the first xy to calulate height something like the following  */
-      /* if ( z_id == 0) */
-      /* { */
-      /*   height =  (float)open_simplex_noise2(simpnoise, xs*noisespacefreq, ys*noisespacefreq); */
-      /* } */
+	  /* calculate point index */
+	  point_id = (z_index * xy_dims) + (y_index * x_dims) + x_index;
+	    
+	  height[ii] =  (float)open_simplex_noise2(simpnoise, x*noisespacefreq, y*noisespacefreq);
+	  data[ii] = (float)open_simplex_noise4(simpnoise, x*noisespacefreq, y*noisespacefreq, z*noisespacefreq, tt*noisetimefreq);
 
-      height[i] =  (float)open_simplex_noise2(simpnoise, xs*noisespacefreq, ys*noisespacefreq);
-      data[i] = (float)open_simplex_noise4(simpnoise, xs*noisespacefreq, ys*noisespacefreq, zs*noisespacefreq, tt*noisetimefreq);
+	  /* height_index = (int) height[ii]/deltaz; */
+	  height_index = (int) (((height[ii]+1)/2) * (nk-1));
+	  
+	  /* Calculate ola_mask values */
+	  if (z_index > mask_thres_index  && z_index > height_index) {
+	    ola_mask[ii] = 2;  /* Atmosphere */
+	  }
+	  else if (z_index < mask_thres_index  && z_index > height_index) {
+	    ola_mask[ii] = 0;  /* ocean */
+	  }
+	  else if (z_index <= height_index) {
+	    if (height[ii] >= mask_thres  || z_index < height_index) {
+	      ola_mask[ii] = 1;  /* land */
+	    }
+	    else {
+	      ola_mask[ii] = 0;  /* ocean */
+	    }
+	  }
+	  else if (z_index == mask_thres_index  && height[ii] <= mask_thres) {
+	      ola_mask[ii] = 0;  /* ocean */
+	  }
+	  else {
+	    printf("WARNING: mask condition not considered for Point_index: (%d,%d,%d)\n Point_id: %d  Height: %f HeightID: %d  mask_thres_index=%d\n", x_index, y_index, z_index,  point_id+1, height[ii], height_index,mask_thres_index); 
+	  }
+	  
 
-      height_id = (int) height[i]/deltaz;
 
-      /* /\* other way of calculating ola_mask values *\/ */
-      /* if (height_id == z_id ) { */
-      /* 	if (z_id > mask_thres_id) {	     */
-      /* 	  ola_mask[i] = 2;  /\* land surface above *\/ */
-      /* 	} else if (z_id == mask_thres_id) {	     */
-      /* 	  ola_mask[i] = 2;  /\* land surface at sea level*\/ */
-      /* 	} else if (z_id < mask_thres_id) {	     */
-      /* 	  ola_mask[i] = 2;  /\* land surface below sea level*\/ */
-      /* 	} */
-      /* } else if ( z_id < height_id ) {     	 */
-      /* 	ola_mask[i] = 1;  /\* below land surface *\/ */
-      /* } else if ( z_id  > height_id) {	 */
-      /* 	if (z_id > mask_thres_id) {	     */
-      /* 	  ola_mask[i] = 3;  /\* Atmosphere*\/ */
-      /* 	} else if (z_id == mask_thres_id) {	     */
-      /* 	  ola_mask[i] = 0;  /\* ocean at sea level*\/ */
-      /* 	} else if (z_id < mask_thres_id) {	     */
-      /* 	  ola_mask[i] = 0;  /\* ocean below sea level*\/ */
-      /* 	} */
-      /* } */
+	  if (debug /* &&  y_index == 0 */) {
+	    printf("++++++++++++++++++++++++++++++++++++++++++++\n");
+	    printf("rank_cord(%d,%d,%d) rank=%d: %d of %d\n", crnk[0], crnk[1], crnk[2] , rank, rank+1, nprocs);
+	    printf("timestep=%d LDims: (%d,%d,%d)\n", tt, cni, cnj, cnk); 
+	    printf("timestep=%d GDims: (%d,%d,%d)\n", tt, ni, nj, nk);
+	     printf("timestep=%d SDims: (%d,%d,%d)\n", tt, is, js, ks); 
+	    /* printf("timestep=%d Point_deltas: (%f, %f, %f)\n", tt, deltax, deltay, deltaz); */
+	    printf("timestep=%d Point_index: (%d,%d,%d), Point_id:  %d\n", tt, x_index, y_index, z_index,  point_id+1);
+	    /* printf("timestep=%d Dims: (%d,%d,%d)\n", tt, ni, nj, nk); */
+	    printf("timestep=%d Point_pos: (%f, %f, %f) data=%f\n", tt, x, y, z, data[ii]);
+	    printf("timestep=%d Height: %f HeightID: %d mask=%d\n", tt, height[ii], height_index, ola_mask[ii]);
 
-      
-      /* Calculate ola_mask values */
-      if (height_id == z_id ) {
-	if (z_id > mask_thres_id) {	    
-	  ola_mask[i] = 2;  /* land surface above */
-	} else if (z_id == mask_thres_id) {	    
-	  ola_mask[i] = 2;  /* land surface at sea level*/
-	} else if (z_id < mask_thres_id) {	    
-	  ola_mask[i] = 2;  /* land surface below sea level*/
+	    /*  /\*  write out land surface data -- later can be changed *\/ */
+	    /* if  (ola_mask[i] == 2) { */
+	    /* 	printf("++++++++++++++++++++++++++++++++++++++++++++\n");       */
+	    /* 	printf("timestep=%d rank=%d: %d of %d:  point_id=%d\n", tt, rank, rank+1, nprocs, point_id+1); */
+	    /* 	printf("timestep=%d Point_id: (%d, %d, %d) = %f\n", tt, x_id, y_id, z_id, data[i]); */
+	    /* 	printf("timestep=%d Point_pos: (%f, %f, %f) = %f\n", tt, xs, ys, zs, data[i]); */
+	    /* 	printf("timestep=%d Height: %f Height id: %d mask=%d\n", tt, height[i], height_id, ola_mask[i]); */
+	    /* } */
+	  }	      
+
+	  /* need other frequencies */
+	  x += deltax;
 	}
-      } else if (z_id == mask_thres_id) {	    
-	ola_mask[i] = 0;  /* ocean at sea level*/
-      } else if (z_id < mask_thres_id) {
-	ola_mask[i] = 0;  /* ocean below sea level*/
-      } else if (z_id > mask_thres_id) {	    
-	  ola_mask[i] = 3;  /* Atmosphere*/
+	y += deltay;
       }
-      
+      z += deltaz;
+    }	
 
-      if (debug) {
-	printf("++++++++++++++++++++++++++++++++++++++++++++\n");
-	printf("timestep=%d rank=%d: %d of %d:  point_id=%d\n", tt, rank, rank+1, nprocs, point_id+1);
-	printf("timestep=%d Point_id: (%d, %d, %d) = %f\n", tt, x_id, y_id, z_id, data[i]);
-	printf("timestep=%d Point_pos: (%f, %f, %f) = %f\n", tt, xs, ys, zs, data[i]);
-	printf("timestep=%d Height: %f Height id: %d mask=%llu\n", tt, height[i], height_id, ola_mask[i]);
-
-	/*  /\*  write out land surface data -- later can be changed *\/ */
-	/* if  (ola_mask[i] == 2) { */
-	/* 	printf("++++++++++++++++++++++++++++++++++++++++++++\n");       */
-	/* 	printf("timestep=%d rank=%d: %d of %d:  point_id=%d\n", tt, rank, rank+1, nprocs, point_id+1); */
-	/* 	printf("timestep=%d Point_id: (%d, %d, %d) = %f\n", tt, x_id, y_id, z_id, data[i]); */
-	/* 	printf("timestep=%d Point_pos: (%f, %f, %f) = %f\n", tt, xs, ys, zs, data[i]); */
-	/* 	printf("timestep=%d Height: %f Height id: %d mask=%d\n", tt, height[i], height_id, ola_mask[i]); */
-	/* } */
-      }
-    }
     
 #ifdef HAS_ADIOS
 
-    adiosstruct_write(&adiosstruct_nfo, tt, cnpoints, npoints, cstart, ola_mask);
-    /* adios_write(adios_handle, "ola_mask", ola_mask); */
+    adiosstruct_write(&adiosstruct_nfo, tt, ola_mask);
     
 #endif 
 
@@ -253,7 +264,6 @@ int main(int argc, char **argv)
 
     /* finalize ADIOS */
 #ifdef HAS_ADIOS
-    /* adios_finalize(rank); */
     adiosstruct_finalize(&adiosstruct_nfo);
 #endif
 
@@ -274,9 +284,14 @@ void print_usage(int rank, const char *errstr)
   if(errstr)
     fprintf(stderr, "%s\n\n", errstr);
   fprintf(stderr,
-	  "Usage: mpi_launcher [-n|-np NPROCS] ./struct --size NI NJ NK [options]\n"
+	  "Usage: mpi_launcher [-n|-np NPROCS] ./struct --tasks INP JNP KNP --size NI NJ NK [options]\n"
 	  "    NPROCS : # of tasks launched by MPI; may or may not be implied or required by system\n\n"
 	  "  Required:\n"
+	  "    --tasks INP JNP KNP : Specifies the parallel decomposition of tasks\n"
+	  "      INP : # of tasks along the I (X) axis\n"
+	  "      JNP : # of tasks along the J (Y) axis\n"
+	  "      KNP : # of tasks along the K (Z) axis\n"
+	  "        NOTE that INP * JNP * KNP == NPROCS is required!\n"
 	  "    --size NI NJ NK : Specifies the size of the grid\n"
 	  "      NI, NJ, NK : Number of grid points along the I,J,K axes respectively\n"
 	  "      valid values are > 1\n\n" 
@@ -288,7 +303,7 @@ void print_usage(int rank, const char *errstr)
 	  "      FNS : space frequency value; Default: 10.0\n"
 	  "    --noisetimefreq FNT : Temporal frequency of noise function\n"
 	  "      FNT : time frequency value;  Default: 0.25\n"
-	  "    --tsteps NT : Number of time steps; valid values are > 0 (Default value 50)\n"
+	  "    --tsteps NT : Number of time steps; valid values are > 0 (Default value 10)\n"
 	  "    --tstart TS : Starting time step; valid values are >= 0  (Default value 0)\n"
 	  );
 

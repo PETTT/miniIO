@@ -62,7 +62,9 @@ void adiosstruct_init(struct adiosstructinfo *nfo, char *method,
     adios_define_var(nfo->gid, "deltay", "", adios_real, "", "", "");
     adios_define_var(nfo->gid, "deltaz", "", adios_real, "", "", "");
 
-  adios_define_var(nfo->gid, "ola_mask", "", adios_integer,   "cnk,cnj,cni",
+    adios_define_var(nfo->gid, "ola_mask", "", adios_integer,   "cnk,cnj,cni",
+                     "nk,nj,ni", "ks,js,is");
+    adios_define_var(nfo->gid, "ol_mask", "", adios_integer,   "cnk,cnj,cni",
                      "nk,nj,ni", "ks,js,is");
   
   
@@ -79,7 +81,7 @@ void adiosstruct_addxvar(struct adiosstructinfo *nfo, char *varname, float *data
                      "nk,nj,ni", "ks,js,is");
 }
 
-void adiosstruct_write(struct adiosstructinfo *nfo, int tstep, int *mask) {
+void adiosstruct_write(struct adiosstructinfo *nfo, int tstep, int *mask, int *olmask) {
     char fname[fnstrmax+1];
     int timedigits = 4;
     uint64_t ijkelems, groupsize, totalsize;
@@ -91,7 +93,7 @@ void adiosstruct_write(struct adiosstructinfo *nfo, int tstep, int *mask) {
     groupsize = sizeof(int) /*rank*/ + sizeof(int) /*tstep*/ + 
                 sizeof(int)*3 /*ni,nj,nk*/ + sizeof(int)*6 /*is-cnk*/ +
                 sizeof(float)*3 /*deltax,y,z*/ +
-                sizeof(int) * ijkelems /* mask */ +
+                sizeof(int) * ijkelems * 2 /* mask */ +
                 sizeof(float) * ijkelems * nfo->nvars;
     
     /* Allocate buffer large enough for all data to write, if not done already */
@@ -128,6 +130,7 @@ void adiosstruct_write(struct adiosstructinfo *nfo, int tstep, int *mask) {
     adios_write(handle, "deltay", &nfo->deltay);
     adios_write(handle, "deltaz", &nfo->deltaz);
     adios_write(handle, "ola_mask", mask);
+    adios_write(handle, "ol_mask", olmask);
     for(i = 0; i < nfo->nvars; i++) {
         adios_write(handle, nfo->varnames[i], nfo->datas[i]);
     }

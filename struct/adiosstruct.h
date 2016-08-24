@@ -34,7 +34,7 @@ void adiosstruct_init(struct adiosstructinfo *nfo, char *method,
 
 void adiosstruct_addxvar(struct adiosstructinfo *nfo, char *varname, float *data);
 
-void adiosstruct_write(struct adiosstructinfo *nfo, int tstep, int *mask);
+void adiosstruct_write(struct adiosstructinfo *nfo, int tstep, int *mask, int *olmask);
   
 void adiosstruct_finalize(struct adiosstructinfo *nfo);
 

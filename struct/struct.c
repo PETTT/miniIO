@@ -24,11 +24,12 @@ void print_usage(int rank, const char *errstr);
 
 int main(int argc, char **argv)
 {
-  int debug=0;
-  int a, i, j, k, t;                  /* loop indices */
+  int debug=0;                  /* Flag to generate debug prints statements */
+  int debugIO=0;                /* Flag to generate debug IO*/  
+  int a, i, j, k, t;            /* loop indices */
   int tt;                       /* Actual time step from tstart */
   float x, y, z;
-  double noisespacefreq = 10.0;   /* Spatial frequency of noise */
+  double noisespacefreq = 10.0; /* Spatial frequency of noise */
   double noisetimefreq = 0.25;  /* Temporal frequency of noise */
   int tstart = 0;
   int nt = 10;                  /* Number of time steps */
@@ -99,6 +100,8 @@ int main(int argc, char **argv)
       tstart = atoi(argv[++a]);
     }else if(!strcasecmp(argv[a], "--debug")) {
       debug = 1;
+    }else if(!strcasecmp(argv[a], "--debugIO")) {
+      debugIO = 1;
     } else {
       if(rank == 0)   fprintf(stderr, "Option not recognized: %s\n\n", argv[a]);
       print_usage(rank, NULL);
@@ -180,10 +183,14 @@ int main(int argc, char **argv)
 #ifdef HAS_ADIOS
 
   adiosstruct_init(&adiosstruct_nfo, adios_method, adios_groupname, comm, rank, nprocs, nt,
-		   ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, deltaz);
-  adiosstruct_addxvar(&adiosstruct_nfo, "data", data);
-  adiosstruct_addxvar(&adiosstruct_nfo, "height", height);
-  
+		   ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, deltaz, FILLVALUE);
+  adiosstruct_addrealxvar(&adiosstruct_nfo, "data", data);
+
+  if (debugIO) {
+    adiosstruct_addrealxvar(&adiosstruct_nfo, "height", height);
+    adiosstruct_addintxvar(&adiosstruct_nfo, "ola_mask", ola_mask);
+    adiosstruct_addintxvar(&adiosstruct_nfo, "ol_mask", ol_mask);
+  }
 #endif
 
   /* generate masked grid */
@@ -296,15 +303,6 @@ int main(int argc, char **argv)
 	  else {
 	    data[ii] = FILLVALUE;
 	  }
-	 
-	  /* if (debug /\* &&  y_index == 0 *\/) { */
-	  /*   printf("++++++++++++++++++++++++++++++++++++++++++++\n"); */
-	  /*   printf("rank_cord(%d,%d,%d) rank=%d: %d of %d\n", crnk[0], crnk[1], crnk[2] , rank, rank+1, nprocs); */
-	  /*   printf("timestep=%d LDims: (%d,%d,%d)\n", tt, cni, cnj, cnk);  */
-	  /*   printf("timestep=%d GDims: (%d,%d,%d)\n", tt, ni, nj, nk); */
-	  /*   printf("timestep=%d SDims: (%d,%d,%d)\n", tt, is, js, ks);  */
-	  /*   printf("timestep=%d Point_pos: (%f, %f, %f) data=%f\n", tt, x, y, z, data[ii]); */
-	  /* }	       */
        
 	  x += deltax;
 	}
@@ -316,7 +314,7 @@ int main(int argc, char **argv)
     
 #ifdef HAS_ADIOS
 
-    adiosstruct_write(&adiosstruct_nfo, tt, ola_mask, ol_mask);
+    adiosstruct_write(&adiosstruct_nfo, tt);
     
 #endif 
 
@@ -357,7 +355,8 @@ void print_usage(int rank, const char *errstr)
 	  "      NI, NJ, NK : Number of grid points along the I,J,K axes respectively\n"
 	  "      valid values are > 1\n\n" 
 	  "  Optional:\n"
-	  "    --debug: Turns on debugging statements \n"
+	  "    --debug: Turns on debugging print statements \n"
+	  "    --debugIO: Turns on debugging IO (corrently only works with ADIOS IO) \n"
 	  "    --maskthreshold MT : Mask theshold; valid values are floats between -1.0 and 1.0 \n"
 	  "      MT : mask threshold value; Default: 0.0\n"
 	  "    --noisespacefreq FNS : Spatial frequency of noise function\n"

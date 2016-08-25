@@ -1,4 +1,4 @@
-TEST eaxmples
+TEST examples
 
 # Smallest test (test1):
 mpirun --np 4 ./struct --tasks 2 2 --size 2 2 2 --tsteps 1

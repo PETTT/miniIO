@@ -18,6 +18,16 @@ SRCS += adiosamr.c
 CFLAGS += -DHAS_ADIOS -I$(HOME)/ace4/adios/include
 #CFLAGS += -I$(HOME)/ace4/adios/include
 LIBS += -L$(HOME)/ace4/adios/lib -L$(HOME)/ace4/mxml/lib -ladios -lmxml
+
+### if HDF5_DIR set then enable HDF5 ###
+ifdef HDF5_DIR
+  LIBS += $(HDF5_DIR)/lib/libhdf5.a -lz -ldl
+  INCLUDE += -I$(HDF5_DIR)/include
+  OBJS += hdf5i.o hdf5p.o
+  SRCS += hdf5i.c hdf5p.c
+  CFLAGS += -DHAS_HDF5
+endif
+
 ### End of Output Modules ###
 
 CFLAGS += $(OSNINC)

@@ -3,10 +3,10 @@ TEST eaxmples
 # Smallest test (test1):
 mpirun --np 4 ./struct --tasks 2 2 --size 2 2 2 --tsteps 1
 
-# Smallest test with debuging statements (test1_debug):
+# Smallest test with debugging statements (test1_debug):
 mpirun --np 4 ./struct -task 2 2 --size 2 2 2 --tsteps 1 --debug
 
-# Smallest test that generated extra ADIOS output for debuging (generates mask and hight data):
+# Smallest test that generated extra ADIOS output for debugging (generates mask and height data):
 mpirun --np 4 ./struct -task 2 2 --size 2 2 2 --tsteps 1 --debugIO
 
 # Smallest test with default values passed same as test1:

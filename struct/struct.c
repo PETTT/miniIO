@@ -14,6 +14,8 @@
 /* #include <limits.h> */
 /* #include <assert.h> */
 
+static const float FILLVALUE = -999;
+
 #ifdef HAS_ADIOS
 #  include "adiosstruct.h"
 #endif
@@ -22,11 +24,12 @@ void print_usage(int rank, const char *errstr);
 
 int main(int argc, char **argv)
 {
-  int debug=0;
-  int a, i, j, k, t;                  /* loop indices */
+  int debug=0;                  /* Flag to generate debug prints statements */
+  int debugIO=0;                /* Flag to generate debug IO*/  
+  int a, i, j, k, t;            /* loop indices */
   int tt;                       /* Actual time step from tstart */
   float x, y, z;
-  double noisespacefreq = 10.0;   /* Spatial frequency of noise */
+  double noisespacefreq = 10.0; /* Spatial frequency of noise */
   double noisetimefreq = 0.25;  /* Temporal frequency of noise */
   int tstart = 0;
   int nt = 10;                  /* Number of time steps */
@@ -35,7 +38,7 @@ int main(int argc, char **argv)
   int nk = 0;
   int inp = 0;      /* Number of tasks in i */
   int jnp = 0;      /* Number of tasks in j */
-  int knp = 0;      /* Number of tasks in k */
+  int knp = 1;      /* Number of tasks in k */
   int numtask;                   /* task per processor */
   int point_id, tmp_id;          /* grid point id */
   int x_index, y_index, z_index; /* point index along each axis */
@@ -45,7 +48,10 @@ int main(int argc, char **argv)
   float *data;
   float *height;
   int height_index;
+  int hindex;
+  int maskTindex;
   int *ola_mask;
+  int *ol_mask;
   float mask_thres=0.0;             /* mask threshold */
   int mask_thres_index;
   struct osn_context *simpnoise;    /* Open simplex noise context */
@@ -78,7 +84,6 @@ int main(int argc, char **argv)
     if(!strcasecmp(argv[a], "--tasks")) {
             inp = atoi(argv[++a]);
             jnp = atoi(argv[++a]);
-            knp = atoi(argv[++a]);
     } else if(!strcasecmp(argv[a], "--size")) {
       ni = atoi(argv[++a]);
       nj = atoi(argv[++a]);
@@ -95,6 +100,8 @@ int main(int argc, char **argv)
       tstart = atoi(argv[++a]);
     }else if(!strcasecmp(argv[a], "--debug")) {
       debug = 1;
+    }else if(!strcasecmp(argv[a], "--debugIO")) {
+      debugIO = 1;
     } else {
       if(rank == 0)   fprintf(stderr, "Option not recognized: %s\n\n", argv[a]);
       print_usage(rank, NULL);
@@ -106,7 +113,7 @@ int main(int argc, char **argv)
   npoints  = numPoints;
  
   /* Check arguments & proc counts */
-  if(inp < 1 || jnp < 1 || knp < 1) {
+  if(inp < 1 || jnp < 1 ) {
     print_usage(rank, "Error: tasks not specified or incorrect");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
@@ -114,7 +121,7 @@ int main(int argc, char **argv)
     print_usage(rank, "Error: size not specified or incorrect");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
-  if(inp*jnp*knp != nprocs) {
+  if(inp*jnp != nprocs) {
     print_usage(rank, "Error: product of tasks does not equal total MPI tasks");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
@@ -154,7 +161,8 @@ int main(int argc, char **argv)
 
   /* mask_thres_index = (int) mask_thres/deltaz; */
   mask_thres_index = (int) ( ((mask_thres+1)/2) * (nk-1));
-
+  maskTindex = nk-1;
+  
   if (debug) {
     /* printf("rank_cord(%d,%d,%d) rank=%d: %d of %d\n", crnk[0], crnk[1], crnk[2] , rank, rank+1, nprocs); */
     printf("Grid size= (%d x %d x %d) = %llu points\n", ni, nj, nk, npoints);
@@ -169,20 +177,117 @@ int main(int argc, char **argv)
   data = (float *) malloc((size_t)cni*cnj*cnk*sizeof(float));
   height = (float *) malloc((size_t)cni*cnj*cnk*sizeof(float));
   ola_mask = (int *) malloc((size_t)cni*cnj*cnk*sizeof(int));
+  ol_mask = (int *) malloc((size_t)cni*cnj*cnk*sizeof(int));
 
   /* init ADIOS */
 #ifdef HAS_ADIOS
 
   adiosstruct_init(&adiosstruct_nfo, adios_method, adios_groupname, comm, rank, nprocs, nt,
-                       ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, deltaz);
-  adiosstruct_addxvar(&adiosstruct_nfo, "data", data);
-  adiosstruct_addxvar(&adiosstruct_nfo, "height", height);
-  
+		   ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, deltaz, FILLVALUE);
+  adiosstruct_addrealxvar(&adiosstruct_nfo, "data", data);
+
+  if (debugIO) {
+    adiosstruct_addrealxvar(&adiosstruct_nfo, "height", height);
+    adiosstruct_addintxvar(&adiosstruct_nfo, "ola_mask", ola_mask);
+    adiosstruct_addintxvar(&adiosstruct_nfo, "ol_mask", ol_mask);
+  }
 #endif
 
-  for(t = 0, tt = tstart; t < nt; t++, tt++) {
-    size_t ii;     /* data index */
+  /* generate masked grid */
+  /* Spatial loops */
+  size_t ii;     /* data index */
+  z = zs;
+  for(k = 0, ii = 0; k < cnk; k++) {
+    y = ys;
+    for(j = 0; j < cnj; j++) {
+      x = xs;
+      for(i = 0; i < cni; i++, ii++) {
+	x_index = (int) (x/deltax);
+	y_index = (int) (y/deltay);
+	z_index = (int) (z/deltaz);
 
+	/* calculate point index */
+	point_id = (z_index * xy_dims) + (y_index * x_dims) + x_index;
+	    
+	height[ii] =  (float)open_simplex_noise2(simpnoise, x*noisespacefreq, y*noisespacefreq);
+
+	/* height_index = (int) height[ii]/deltaz; */
+	height_index = (int) (((height[ii]+1)/2) * (nk-1));
+	  
+	/* Calculate ola_mask values */
+	if (z_index > mask_thres_index  && z_index > height_index) {
+	  ola_mask[ii] = 2;  /* Atmosphere */
+	}
+	else if (z_index < mask_thres_index  && z_index > height_index) {
+	  ola_mask[ii] = 0;  /* ocean */
+	}
+	else if (z_index <= height_index) {
+	  if (height[ii] >= mask_thres  || z_index < height_index) {
+	    ola_mask[ii] = 1;  /* land */
+	  }
+	  else {
+	    ola_mask[ii] = 0;  /* ocean */
+	  }
+	}
+	else if (z_index == mask_thres_index  && height[ii] <= mask_thres) {
+	  ola_mask[ii] = 0;  /* ocean */
+	}
+	else {
+	  printf("WARNING: ola_mask condition not considered for Point_index: (%d,%d,%d)\n"
+		 "Point_id: %d  Height: %f HeightID: %d  mask_thres_index=%d\n",
+		 x_index, y_index, z_index, point_id+1, height[ii], height_index, mask_thres_index); 
+	}
+
+	
+	hindex = (int) ( (((height[ii]+1)/2) * (nk-1)) / (mask_thres_index+1)) * (nk-1);
+
+	hindex = (int) ((height[ii]+1) / (mask_thres+1) * (nk-1));
+	
+	if (hindex > maskTindex) {
+	  hindex = maskTindex;
+	}
+
+	/* Calculate ol_mask values */
+	if (z_index < maskTindex  && z_index > hindex) {
+	  ol_mask[ii] = 0;  /* ocean */
+	}
+	else if (z_index <= hindex) {
+	  if (height[ii] >= mask_thres  || z_index < hindex) {
+	    ol_mask[ii] = 1;  /* land */
+	  }
+	  else {
+	    ol_mask[ii] = 0;  /* ocean */
+	  }
+	}
+	else if (z_index == maskTindex  && height[ii] <= mask_thres) {
+	  ol_mask[ii] = 0;  /* ocean */
+	}
+	else {
+	  printf("WARNING: ol_mask condition not considered for Point_index: (%d,%d,%d)\n"
+		 "Point_id: %d  Height: %f HeightID: %d maskTindex=%d\n",
+		 x_index, y_index, z_index, point_id+1, height[ii], hindex, maskTindex); 
+	}
+
+	if (debug) {
+	  printf("++++++++++++++++++++++++++++++++++++++++++++\n");
+	  printf("rank_cord(%d,%d,%d) rank=%d: %d of %d\n", crnk[0], crnk[1], crnk[2] , rank, rank+1, nprocs);
+	  printf("LDims: (%d,%d,%d)\n", cni, cnj, cnk); 
+	  printf("GDims: (%d,%d,%d)\n", ni, nj, nk);
+	  printf("SDims: (%d,%d,%d)\n", is, js, ks); 
+	  printf("Point_index: (%d,%d,%d), Point_id:  %d\n", x_index, y_index, z_index,  point_id+1);
+	  printf("Point_pos: (%f, %f, %f)  mask_thres_index %d -> %d\n", x, y, z, mask_thres_index, maskTindex);
+	  printf("Height: %f HeightID: %d -> %d ola_mask=%d -> %d\n", height[ii], height_index,  hindex, ola_mask[ii], ol_mask[ii]);
+	}	      
+	
+	x += deltax;
+      }
+      y += deltay;
+    }
+    z += deltaz;
+  }	
+
+  /* generate ocean land data */
+  for(t = 0, tt = tstart; t < nt; t++, tt++) {
     /* Spatial loops */
     z = zs;
     for(k = 0, ii = 0; k < cnk; k++) {
@@ -190,66 +295,15 @@ int main(int argc, char **argv)
       for(j = 0; j < cnj; j++) {
 	x = xs;
 	for(i = 0; i < cni; i++, ii++) {
-	  x_index = (int) (x/deltax);
-	  y_index = (int) (y/deltay);
-	  z_index = (int) (z/deltaz);
 
-	  /* calculate point index */
-	  point_id = (z_index * xy_dims) + (y_index * x_dims) + x_index;
-	    
-	  height[ii] =  (float)open_simplex_noise2(simpnoise, x*noisespacefreq, y*noisespacefreq);
-	  data[ii] = (float)open_simplex_noise4(simpnoise, x*noisespacefreq, y*noisespacefreq, z*noisespacefreq, tt*noisetimefreq);
-
-	  /* height_index = (int) height[ii]/deltaz; */
-	  height_index = (int) (((height[ii]+1)/2) * (nk-1));
-	  
-	  /* Calculate ola_mask values */
-	  if (z_index > mask_thres_index  && z_index > height_index) {
-	    ola_mask[ii] = 2;  /* Atmosphere */
-	  }
-	  else if (z_index < mask_thres_index  && z_index > height_index) {
-	    ola_mask[ii] = 0;  /* ocean */
-	  }
-	  else if (z_index <= height_index) {
-	    if (height[ii] >= mask_thres  || z_index < height_index) {
-	      ola_mask[ii] = 1;  /* land */
-	    }
-	    else {
-	      ola_mask[ii] = 0;  /* ocean */
-	    }
-	  }
-	  else if (z_index == mask_thres_index  && height[ii] <= mask_thres) {
-	      ola_mask[ii] = 0;  /* ocean */
+	  if ( ol_mask[ii] == 0) {
+	    /* if  ( ola_mask[ii] == 0) { */
+	    data[ii] = (float)open_simplex_noise4(simpnoise, x*noisespacefreq, y*noisespacefreq, z*noisespacefreq, tt*noisetimefreq);
 	  }
 	  else {
-	    printf("WARNING: mask condition not considered for Point_index: (%d,%d,%d)\n Point_id: %d  Height: %f HeightID: %d  mask_thres_index=%d\n", x_index, y_index, z_index,  point_id+1, height[ii], height_index,mask_thres_index); 
+	    data[ii] = FILLVALUE;
 	  }
-	  
-
-
-	  if (debug /* &&  y_index == 0 */) {
-	    printf("++++++++++++++++++++++++++++++++++++++++++++\n");
-	    printf("rank_cord(%d,%d,%d) rank=%d: %d of %d\n", crnk[0], crnk[1], crnk[2] , rank, rank+1, nprocs);
-	    printf("timestep=%d LDims: (%d,%d,%d)\n", tt, cni, cnj, cnk); 
-	    printf("timestep=%d GDims: (%d,%d,%d)\n", tt, ni, nj, nk);
-	     printf("timestep=%d SDims: (%d,%d,%d)\n", tt, is, js, ks); 
-	    /* printf("timestep=%d Point_deltas: (%f, %f, %f)\n", tt, deltax, deltay, deltaz); */
-	    printf("timestep=%d Point_index: (%d,%d,%d), Point_id:  %d\n", tt, x_index, y_index, z_index,  point_id+1);
-	    /* printf("timestep=%d Dims: (%d,%d,%d)\n", tt, ni, nj, nk); */
-	    printf("timestep=%d Point_pos: (%f, %f, %f) data=%f\n", tt, x, y, z, data[ii]);
-	    printf("timestep=%d Height: %f HeightID: %d mask=%d\n", tt, height[ii], height_index, ola_mask[ii]);
-
-	    /*  /\*  write out land surface data -- later can be changed *\/ */
-	    /* if  (ola_mask[i] == 2) { */
-	    /* 	printf("++++++++++++++++++++++++++++++++++++++++++++\n");       */
-	    /* 	printf("timestep=%d rank=%d: %d of %d:  point_id=%d\n", tt, rank, rank+1, nprocs, point_id+1); */
-	    /* 	printf("timestep=%d Point_id: (%d, %d, %d) = %f\n", tt, x_id, y_id, z_id, data[i]); */
-	    /* 	printf("timestep=%d Point_pos: (%f, %f, %f) = %f\n", tt, xs, ys, zs, data[i]); */
-	    /* 	printf("timestep=%d Height: %f Height id: %d mask=%d\n", tt, height[i], height_id, ola_mask[i]); */
-	    /* } */
-	  }	      
-
-	  /* need other frequencies */
+       
 	  x += deltax;
 	}
 	y += deltay;
@@ -260,7 +314,7 @@ int main(int argc, char **argv)
     
 #ifdef HAS_ADIOS
 
-    adiosstruct_write(&adiosstruct_nfo, tt, ola_mask);
+    adiosstruct_write(&adiosstruct_nfo, tt);
     
 #endif 
 
@@ -276,6 +330,7 @@ int main(int argc, char **argv)
   free(data);
   free(height);
   free(ola_mask);
+  free(ol_mask);
 
   MPI_Finalize();
 
@@ -289,19 +344,19 @@ void print_usage(int rank, const char *errstr)
   if(errstr)
     fprintf(stderr, "%s\n\n", errstr);
   fprintf(stderr,
-	  "Usage: mpi_launcher [-n|-np NPROCS] ./struct --tasks INP JNP KNP --size NI NJ NK [options]\n"
+	  "Usage: mpi_launcher [-n|-np NPROCS] ./struct --tasks INP JNP --size NI NJ NK [options]\n"
 	  "    NPROCS : # of tasks launched by MPI; may or may not be implied or required by system\n\n"
 	  "  Required:\n"
-	  "    --tasks INP JNP KNP : Specifies the parallel decomposition of tasks\n"
+	  "    --tasks INP JNP: Specifies the parallel decomposition of tasks\n"
 	  "      INP : # of tasks along the I (X) axis\n"
 	  "      JNP : # of tasks along the J (Y) axis\n"
-	  "      KNP : # of tasks along the K (Z) axis\n"
 	  "        NOTE that INP * JNP * KNP == NPROCS is required!\n"
 	  "    --size NI NJ NK : Specifies the size of the grid\n"
 	  "      NI, NJ, NK : Number of grid points along the I,J,K axes respectively\n"
 	  "      valid values are > 1\n\n" 
 	  "  Optional:\n"
-	  "    --debug: Turns on debugging statements \n"
+	  "    --debug: Turns on debugging print statements \n"
+	  "    --debugIO: Turns on debugging IO (corrently only works with ADIOS IO) \n"
 	  "    --maskthreshold MT : Mask theshold; valid values are floats between -1.0 and 1.0 \n"
 	  "      MT : mask threshold value; Default: 0.0\n"
 	  "    --noisespacefreq FNS : Spatial frequency of noise function\n"
@@ -311,6 +366,4 @@ void print_usage(int rank, const char *errstr)
 	  "    --tsteps NT : Number of time steps; valid values are > 0 (Default value 10)\n"
 	  "    --tstart TS : Starting time step; valid values are >= 0  (Default value 0)\n"
 	  );
-
-  /*## End of Output Module Usage Strings ##*/
 }

@@ -14,7 +14,7 @@ static const int fnstrmax = 4095;
 void adiosstruct_init(struct adiosstructinfo *nfo, char *method,
                char *name, MPI_Comm comm, int rank, int nprocs,
                int tsteps, int ni, int nj, int nk, int is, int cni, int js, int cnj,
-               int ks, int cnk, float deltax, float deltay, float deltaz) {
+		      int ks, int cnk, float deltax, float deltay, float deltaz,  float fillvalue) {
   
   nfo->name = name;
   nfo->comm = comm;
@@ -33,11 +33,16 @@ void adiosstruct_init(struct adiosstructinfo *nfo, char *method,
   nfo->deltax = deltax;
   nfo->deltay = deltay;
   nfo->deltaz = deltaz;
-  
-  nfo->nvars = 0;
+  nfo->fillvalue = fillvalue;
+
   nfo->maxvars = 1000;
-  nfo->varnames = (char **) malloc(nfo->maxvars * sizeof(char *));
-  nfo->datas = (float **) malloc(nfo->maxvars * sizeof(float *));
+  nfo->nrealvars = 0;
+  nfo->realvarnames = (char **) malloc(nfo->maxvars * sizeof(char *));
+  nfo->realdatas = (float **) malloc(nfo->maxvars * sizeof(float *));
+  nfo->nintvars = 0;
+  nfo->intvarnames = (char **) malloc(nfo->maxvars * sizeof(char *));
+  nfo->intdatas = (int **) malloc(nfo->maxvars * sizeof(int *));
+  
   nfo->bufallocsize = 0;
 
   /* Set up ADIOS */
@@ -46,40 +51,55 @@ void adiosstruct_init(struct adiosstructinfo *nfo, char *method,
   adios_select_method(nfo->gid, method, "", "");
 
   /* Define output variables */
-  /* Define output variables */
-    adios_define_var(nfo->gid, "rank", "", adios_integer, "", "", "");
-    adios_define_var(nfo->gid, "tstep", "", adios_integer, "", "", "");
-    adios_define_var(nfo->gid, "ni", "", adios_integer, "", "", "");
-    adios_define_var(nfo->gid, "nj", "", adios_integer, "", "", "");
-    adios_define_var(nfo->gid, "nk", "", adios_integer, "", "", "");
-    adios_define_var(nfo->gid, "is", "", adios_integer, "", "", "");
-    adios_define_var(nfo->gid, "cni", "", adios_integer, "", "", "");
-    adios_define_var(nfo->gid, "js", "", adios_integer, "", "", "");
-    adios_define_var(nfo->gid, "cnj", "", adios_integer, "", "", "");
-    adios_define_var(nfo->gid, "ks", "", adios_integer, "", "", "");
-    adios_define_var(nfo->gid, "cnk", "", adios_integer, "", "", "");
-    adios_define_var(nfo->gid, "deltax", "", adios_real, "", "", "");
-    adios_define_var(nfo->gid, "deltay", "", adios_real, "", "", "");
-    adios_define_var(nfo->gid, "deltaz", "", adios_real, "", "", "");
-
-  adios_define_var(nfo->gid, "ola_mask", "", adios_integer,   "cnk,cnj,cni",
-                     "nk,nj,ni", "ks,js,is");
-  
-  
+  adios_define_var(nfo->gid, "rank", "", adios_integer, "", "", "");
+  adios_define_var(nfo->gid, "tstep", "", adios_integer, "", "", "");
+  adios_define_var(nfo->gid, "ni", "", adios_integer, "", "", "");
+  adios_define_var(nfo->gid, "nj", "", adios_integer, "", "", "");
+  adios_define_var(nfo->gid, "nk", "", adios_integer, "", "", "");
+  adios_define_var(nfo->gid, "is", "", adios_integer, "", "", "");
+  adios_define_var(nfo->gid, "cni", "", adios_integer, "", "", "");
+  adios_define_var(nfo->gid, "js", "", adios_integer, "", "", "");
+  adios_define_var(nfo->gid, "cnj", "", adios_integer, "", "", "");
+  adios_define_var(nfo->gid, "ks", "", adios_integer, "", "", "");
+  adios_define_var(nfo->gid, "cnk", "", adios_integer, "", "", "");
+  adios_define_var(nfo->gid, "deltax", "", adios_real, "", "", "");
+  adios_define_var(nfo->gid, "deltay", "", adios_real, "", "", "");
+  adios_define_var(nfo->gid, "deltaz", "", adios_real, "", "", "");  
 }
 
-void adiosstruct_addxvar(struct adiosstructinfo *nfo, char *varname, float *data) {
+void adiosstruct_addrealxvar(struct adiosstructinfo *nfo, char *varname, float *data) {
 
-    if(nfo->nvars >= nfo->maxvars)
-        return;   /* Just ignore too many variables, for now */
-    nfo->varnames[nfo->nvars] = varname;
-    nfo->datas[nfo->nvars] = data;
-    nfo->nvars++;
-    adios_define_var(nfo->gid, varname, "", adios_real, "cnk,cnj,cni",
-                     "nk,nj,ni", "ks,js,is");
+  if((nfo->nrealvars + nfo->nintvars) >= nfo->maxvars)
+    return;   /* Just ignore too many variables, for now */
+  
+  nfo->realvarnames[nfo->nrealvars] = varname;
+  nfo->realdatas[nfo->nrealvars] = data;
+  nfo->nrealvars++;
+
+  /* add vars fill value attribute */
+  adios_define_attribute_byvalue(nfo->gid, "_FillValue", varname , adios_real , 1, &nfo->fillvalue);
+
+  /* add var */
+  adios_define_var(nfo->gid, varname, "", adios_real, "cnk,cnj,cni",
+		   "nk,nj,ni", "ks,js,is");
+    
 }
 
-void adiosstruct_write(struct adiosstructinfo *nfo, int tstep, int *mask) {
+void adiosstruct_addintxvar(struct adiosstructinfo *nfo, char *varname, int *data) {
+
+  if((nfo->nrealvars + nfo->nintvars) >= nfo->maxvars)
+    return;   /* Just ignore too many variables, for now */
+  nfo->intvarnames[nfo->nintvars] = varname;
+  nfo->intdatas[nfo->nintvars] = data;
+  nfo->nintvars++;
+
+  /* add var */
+  adios_define_var(nfo->gid, varname, "", adios_integer,   "cnk,cnj,cni",
+		   "nk,nj,ni", "ks,js,is");
+    
+}
+
+void adiosstruct_write(struct adiosstructinfo *nfo, int tstep) {
     char fname[fnstrmax+1];
     int timedigits = 4;
     uint64_t ijkelems, groupsize, totalsize;
@@ -90,9 +110,9 @@ void adiosstruct_write(struct adiosstructinfo *nfo, int tstep, int *mask) {
     ijkelems = (uint64_t) nfo->cni * nfo->cnj * nfo->cnk;
     groupsize = sizeof(int) /*rank*/ + sizeof(int) /*tstep*/ + 
                 sizeof(int)*3 /*ni,nj,nk*/ + sizeof(int)*6 /*is-cnk*/ +
-                sizeof(float)*3 /*deltax,y,z*/ +
-                sizeof(int) * ijkelems /* mask */ +
-                sizeof(float) * ijkelems * nfo->nvars;
+                sizeof(float)*4 /*deltax,y,z - FVal*/ +
+                sizeof(int) * ijkelems * nfo->nintvars /* mask */ +
+                sizeof(float) * ijkelems * nfo->nrealvars;
     
     /* Allocate buffer large enough for all data to write, if not done already */
     bufneeded = (int)(groupsize/(1024*1024));
@@ -127,16 +147,20 @@ void adiosstruct_write(struct adiosstructinfo *nfo, int tstep, int *mask) {
     adios_write(handle, "deltax", &nfo->deltax);
     adios_write(handle, "deltay", &nfo->deltay);
     adios_write(handle, "deltaz", &nfo->deltaz);
-    adios_write(handle, "ola_mask", mask);
-    for(i = 0; i < nfo->nvars; i++) {
-        adios_write(handle, nfo->varnames[i], nfo->datas[i]);
+    for(i = 0; i < nfo->nrealvars; i++) {
+        adios_write(handle, nfo->realvarnames[i], nfo->realdatas[i]);
+    }
+    for(i = 0; i < nfo->nintvars; i++) {
+        adios_write(handle, nfo->intvarnames[i], nfo->intdatas[i]);
     }
     adios_close(handle);
 }
 
 void adiosstruct_finalize(struct adiosstructinfo *nfo) {
-    free(nfo->varnames);
-    free(nfo->datas);
+    free(nfo->realvarnames);
+    free(nfo->realdatas);
+    free(nfo->intvarnames);
+    free(nfo->intdatas);
     adios_finalize(nfo->rank);
 }
 

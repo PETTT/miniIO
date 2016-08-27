@@ -80,6 +80,7 @@ significantly.  The cartiso mini-app is named as such because it generates a Car
 For now, there is no single Makefile for all mini-apps.  One enters the
 directory of each desired mini-app to build.  In general, just follow the README
 in each mini-app directory.  The general approach is:
+
 1. Edit Makefile.inc and set the correct compilers and flags for the system.
 2. Enter desired mini-app directory.
 3. Edit Makefile to enable/disable I/O modules
@@ -110,6 +111,7 @@ See the README and USAGE statement for each mini-app for more details.
 Follow the README for each mini-app for specifics.  Each mini-app carefully and
 clearly comments where new I/O methods get added.  The general overview of
 adding an I/O module for each mini-app is as follows:
+
 1. Add to the I/O Modules sections in the Makefile
 2. Add includes to main .c file
 3. Recommended: add usage string to main .c file

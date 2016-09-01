@@ -4,18 +4,15 @@ include ../Makefile.inc
 OBJS = struct.o
 SRCS = struct.c
 
-### Add Output Modules Here ###
-
-ifdef ADIOS
+# ADIOS Common
+ENABLE_ADIOS = 0
+ifeq ($(ENABLE_ADIOS),1)
+  ADIOS_HOME ?= $(HOME)/ace4/adios
+  MXML_HOME ?= $(HOME)/ace4/mxml
   OBJS += adiosstruct.o
   SRCS += adiosstruct.c
-endif
-
-# ADIOS Full Output Module
-
-ifdef ADIOS
-  CFLAGS += -DHAS_ADIOS -I$(HOME)/ace4/adios/include
-  LIBS += -L$(HOME)/ace4/adios/lib -L$(HOME)/ace4/mxml/lib -ladios -lmxml
+  CFLAGS += -DHAS_ADIOS -I$(ADIOS_HOME)/include
+  LIBS += -L$(ADIOS_HOME)/lib -ladios -L$(MXML_HOME)/lib -lmxml
 endif
 
 ### if HDF5_DIR is set then enable HDF5 ###

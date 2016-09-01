@@ -16,7 +16,7 @@
 static const int fnstrmax = 4095;
 
 void
-write_xdmf_xml(char *fname, char *fname_xdmf, uint64_t npoints, int num_xname, char **xname, 
+write_xdmf_xml(char *fname, char *fname_xdmf, int num_xname, char **xname, 
 	       int ni, int nj, int nk,
 	       float deltax, float deltay, float deltaz);
 
@@ -155,12 +155,12 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 
       /* Create xdmf file for timestep */
     if(rank == 0) {
-      write_xdmf_xml(fname, fname_xdmf, ni*nj*nk, num_varnames, varnames, ni, nj, nk, deltax, deltay, deltaz);
+      write_xdmf_xml(fname, fname_xdmf, num_varnames, varnames, ni, nj, nk, deltax, deltay, deltaz);
     }
 }
 
 void
-write_xdmf_xml(char *fname, char *fname_xdmf, uint64_t npoints, int num_xname, char **varnames, 
+write_xdmf_xml(char *fname, char *fname_xdmf, int num_xname, char **varnames, 
 	       int ni, int nj, int nk,
 	       float deltax, float deltay, float deltaz)
 {

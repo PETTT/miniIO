@@ -20,6 +20,10 @@ static const float FILLVALUE = -999;
 #  include "adiosstruct.h"
 #endif
 
+#ifdef HAS_HDF5
+#  include "hdf5struct.h"
+#endif
+
 void print_usage(int rank, const char *errstr);
 
 int main(int argc, char **argv)
@@ -56,6 +60,9 @@ int main(int argc, char **argv)
   int mask_thres_index;
   struct osn_context *simpnoise;    /* Open simplex noise context */
   
+  const int num_varnames=4;
+  char *varnames[num_varnames];
+
   /* MPI vars */
   MPI_Comm comm = MPI_COMM_WORLD;
   int cprocs[3], cpers[3], crnk[3];  /* MPI Cartesian info */
@@ -69,6 +76,10 @@ int main(int argc, char **argv)
   uint64_t cnpoints=0;
   uint64_t npoints=0;
 
+#ifdef HAS_HDF5
+  int hdf5out = 0;
+#endif
+
 #ifdef HAS_ADIOS
   char      *adios_groupname="struct";
   char      *adios_method="MPI";
@@ -78,9 +89,12 @@ int main(int argc, char **argv)
   MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+    
 
   /* Parse command line */
   for(a = 1; a < argc; a++) {
+
+
     if(!strcasecmp(argv[a], "--tasks")) {
             inp = atoi(argv[++a]);
             jnp = atoi(argv[++a]);
@@ -101,7 +115,15 @@ int main(int argc, char **argv)
     }else if(!strcasecmp(argv[a], "--debug")) {
       debug = 1;
     }else if(!strcasecmp(argv[a], "--debugIO")) {
-      debugIO = 1;
+      debugIO = 1; 
+    }else if(!strcasecmp(argv[a], "--hdf5")) {
+#ifdef HAS_HDF5
+      hdf5out = 1;
+#else
+      if(rank == 0)   fprintf(stderr, "HDF5 option not available: %s\n\n", argv[a]);
+      print_usage(rank, NULL);
+      MPI_Abort(MPI_COMM_WORLD, 1); 
+#endif
     } else {
       if(rank == 0)   fprintf(stderr, "Option not recognized: %s\n\n", argv[a]);
       print_usage(rank, NULL);
@@ -169,7 +191,6 @@ int main(int argc, char **argv)
     /* printf("Grid deltas= (%f x %f x %f)\n", deltax, deltay, deltaz); */
     printf("Mask theshold = %f   mask threshold index = %d\n", mask_thres, mask_thres_index);
   }
-  
   /* Set up osn */
   open_simplex_noise(12345, &simpnoise);   /* Fixed seed, for now */
 
@@ -179,17 +200,22 @@ int main(int argc, char **argv)
   ola_mask = (int *) malloc((size_t)cni*cnj*cnk*sizeof(int));
   ol_mask = (int *) malloc((size_t)cni*cnj*cnk*sizeof(int));
 
+  varnames[0] = "data";
+  varnames[1] = "height";
+  varnames[2] = "ola_mask";
+  varnames[3] = "ol_mask";
+
   /* init ADIOS */
 #ifdef HAS_ADIOS
 
   adiosstruct_init(&adiosstruct_nfo, adios_method, adios_groupname, comm, rank, nprocs, nt,
 		   ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, deltaz, FILLVALUE);
-  adiosstruct_addrealxvar(&adiosstruct_nfo, "data", data);
+  adiosstruct_addrealxvar(&adiosstruct_nfo, varnames[0], data);
 
   if (debugIO) {
-    adiosstruct_addrealxvar(&adiosstruct_nfo, "height", height);
-    adiosstruct_addintxvar(&adiosstruct_nfo, "ola_mask", ola_mask);
-    adiosstruct_addintxvar(&adiosstruct_nfo, "ol_mask", ol_mask);
+    adiosstruct_addrealxvar(&adiosstruct_nfo, varnames[1], height);
+    adiosstruct_addintxvar(&adiosstruct_nfo, varnames[2], ola_mask);
+    adiosstruct_addintxvar(&adiosstruct_nfo, varnames[3], ol_mask);
   }
 #endif
 
@@ -316,10 +342,22 @@ int main(int argc, char **argv)
 
     adiosstruct_write(&adiosstruct_nfo, tt);
     
-#endif 
+#endif
+ 
+#ifdef HAS_HDF5
+    if(hdf5out) {
+      if(rank == 0) {
+	printf("      Writing hdf5...\n");   fflush(stdout);
+      }
+      writehdf5(num_varnames, varnames, comm, rank, nprocs, tt,
+		ni, nj, nk, cni, cnj, cnk,  
+		deltax, deltay, deltaz,
+		data, height, ola_mask, ol_mask);
+    }
+#endif
+
 
   }
-
 
     /* finalize ADIOS */
 #ifdef HAS_ADIOS
@@ -365,5 +403,8 @@ void print_usage(int rank, const char *errstr)
 	  "      FNT : time frequency value;  Default: 0.25\n"
 	  "    --tsteps NT : Number of time steps; valid values are > 0 (Default value 10)\n"
 	  "    --tstart TS : Starting time step; valid values are >= 0  (Default value 0)\n"
+#ifdef HAS_HDF5
+	  "    --hdf5 : Enable HDF5 output (i.e. XDMF)\n"
+#endif
 	  );
 }

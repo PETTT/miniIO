@@ -9,10 +9,10 @@ OPT = -O3
 DBG = -g
 
 # Add HDF5 library, set to install directory
-HDF5_DIR ?= /opt/local
+# ** set via the HDF5_DIR environment variable **
 
 # Flags, set as needed; add MPI flags if wrappers weren't available 
-CFLAGS =  
+CFLAGS =
 CXXFLAGS = 
 FCFLAGS =
 LDFLAGS = 

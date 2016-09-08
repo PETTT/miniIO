@@ -350,6 +350,7 @@ int main(int argc, char **argv)
 	printf("      Writing hdf5...\n");   fflush(stdout);
       }
       writehdf5(num_varnames, varnames, comm, rank, nprocs, tt,
+		is, js, ks,
 		ni, nj, nk, cni, cnj, cnk,  
 		deltax, deltay, deltaz,
 		data, height, ola_mask, ol_mask);

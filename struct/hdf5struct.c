@@ -16,11 +16,12 @@
 static const int fnstrmax = 4095;
 
 void
-write_xdmf_xml(char *fname, char *fname_xdmf, int num_xname, char **xname, 
+write_xdmf_xml(char *fname, char *fname_xdmf, int num_xname, char **xname,
 	       int ni, int nj, int nk,
 	       float deltax, float deltay, float deltaz);
 
-void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank, int nprocs, int tstep,
+void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank, int nprocs, int tstep, 
+	       int is, int js, int ks,
                int ni, int nj, int nk, int cni, int cnj, int cnk, 
                float deltax, float deltay, float deltaz, 
                float *data, float *height, int *ola_mask, int *ol_mask)
@@ -35,8 +36,8 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     hid_t memspace;
     hid_t filespace;
     hid_t did;
-    hsize_t start[1], count[1];
-    hsize_t dims[1];
+    hsize_t start[3], count[3];
+    hsize_t dims[3];
     int j;
     herr_t err;
     
@@ -50,8 +51,10 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 	MPI_Abort(comm, 1);
       }
 
-      dims[0] = ni*nj*nk;
-      filespace = H5Screate_simple(1, dims, NULL);
+      dims[0] = nk;
+      dims[1] = nj;
+      dims[2] = ni;
+      filespace = H5Screate_simple(3, dims, NULL);
 
       /* Create the dataset with default properties */
       
@@ -100,10 +103,14 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
       MPI_Abort(comm, 1);
     }
 
-    start[0] = (hsize_t)(rank*cni*cnj*cnk);
-    count[0] = (hsize_t)(cni*cnj*cnk);
-    
-    memspace = H5Screate_simple(1, count, NULL);
+    start[0] = (hsize_t)(ks);
+    start[1] = (hsize_t)(js);
+    start[2] = (hsize_t)(is);
+    count[0] = (hsize_t)(cnk);
+    count[1] = (hsize_t)(cnj);
+    count[2] = (hsize_t)(cni);
+
+    memspace = H5Screate_simple(3, count, NULL);
 
     /* Create property list for collective dataset write. */
     plist_id = H5Pcreate(H5P_DATASET_XFER);
@@ -176,10 +183,10 @@ write_xdmf_xml(char *fname, char *fname_xdmf, int num_xname, char **varnames,
     fprintf(xmf, "<!DOCTYPE Xdmf SYSTEM \"Xdmf.dtd\" []>\n");
     fprintf(xmf, "<Xdmf Version=\"3.0\">\n");
     fprintf(xmf, " <Domain>\n\n");
-    fprintf(xmf, "   <Grid Name =\"grid\">\n");
-    fprintf(xmf, "    <Topology TopologyType=\"3DCoRectMesh\" Dimensions=\"%d %d %d\">\n", ni, nj, nk);
+    fprintf(xmf, "   <Grid Name =\"grid\" GridType=\"Uniform\">\n");
+    fprintf(xmf, "    <Topology TopologyType=\"3DCoRectMesh\" Dimensions=\"%d %d %d\">\n", nk, nj, ni);
     fprintf(xmf, "    </Topology>\n\n");
-    fprintf(xmf, "    <Geometry name=\"Structured\" Type=\"ORIGIN_DXDYDZ\">\n");
+    fprintf(xmf, "    <Geometry Type=\"ORIGIN_DXDYDZ\">\n");
     fprintf(xmf, "        <!-- Origin -->\n");
     fprintf(xmf, "        <DataItem Format=\"XML\" Dimensions=\"3\">\n");
     fprintf(xmf, "                    0.0 0.0 0.0 \n");
@@ -192,9 +199,9 @@ write_xdmf_xml(char *fname, char *fname_xdmf, int num_xname, char **varnames,
     for (j=0; j<num_xname; j++) {
       fprintf(xmf, "    <Attribute Name=\"%s\" AttributeType=\"Scalar\" Center=\"Node\">\n", varnames[j]);
       if(strcmp(varnames[j],"data") == 0 || strcmp(varnames[j],"height") == 0) {
-	fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", ni, nj, nk);
+	fprintf(xmf, "       <DataItem Dimensions=\"%d \" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", nk*nj*ni);
       } else {
-	fprintf(xmf, "       <DataItem Dimensions=\"%d %d %d\" NumberType=\"Int\" Precision=\"4\" Format=\"HDF\">\n", ni, nj, nk);
+	fprintf(xmf, "       <DataItem Dimensions=\"%d \" NumberType=\"Int\" Precision=\"4\" Format=\"HDF\">\n", nk*nj*ni);
       }
       fprintf(xmf, "        %s:/%s\n", fname, varnames[j]);
       fprintf(xmf, "       </DataItem>\n");

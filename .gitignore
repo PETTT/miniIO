@@ -14,3 +14,13 @@ cartiso/cartiso
 unstruct/unstruct
 struct/struct
 
+# Editor generated files
+*~
+*#
+**/*~
+**/*.bak
+**/*.sw[abcdefghijklmnop]
+
+# Program ouput files
+**/*.h5
+**/*.xmf

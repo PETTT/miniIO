@@ -1,4 +1,17 @@
-TEST
+TEST examples
 
-mpirun -np 4 ./amr --blockdim 10 --levels 3 --tsteps 1
+# Smallest test (test1):
+mpirun -np 1 ./amr --tasks 1 1 1 --size 2 2 2 --levels 0 --tsteps 1
+
+# Smallest test with debugging statements (test1_debug):
+mpirun -np 1 ./amr --tasks 1 1 1 --size 2 2 2 --levels 0 --tsteps 1 --debug
+
+# Smallest test with default values passed same as test1:
+mpirun -np 1 ./amr --tasks 1 1 1 --size 2 2 2 --threshold 0  --levels 0 --tsteps 1 --noisespacefreq 10 --noisetimefreq .25
+
+# Generate VTK output
+mpirun -np 8 ./amr --tasks 2 2 2 --size 3 3 3 --levels 3 --tsteps 1 --vtkout
+
+# larger grid with VTK output
+mpirun -np 8 ./amr --tasks 2 2 2 --size 9 9 9 --levels 3 --tsteps 1 --vtkout
 

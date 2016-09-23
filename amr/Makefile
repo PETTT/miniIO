@@ -1,23 +1,29 @@
 
 include ../Makefile.inc
 
-OBJS = amr.o
-SRCS = amr.c
+OBJS = amr.o cubes.o
+SRCS = amr.c cubes.c
 
 ### Add Output Modules Here ###
 
-# Example
-OBJS += cubes.o
-SRCS += cubes.c
+# VTK Output Module
+ENABLE_VTKOUT = 1
+ifeq ($(ENABLE_VTKOUT),1)
+  OBJS += vtkout.o
+  SRCS += vtkout.c
+  CFLAGS += -DHAS_VTKOUT
+endif
 
-OBJS += adiosamr.o
-SRCS += adiosamr.c 
-#CFLAGS += -DHAS_MYMOD
-
-# ADIOS Full Output Module
-CFLAGS += -DHAS_ADIOS -I$(HOME)/ace4/adios/include
-#CFLAGS += -I$(HOME)/ace4/adios/include
-LIBS += -L$(HOME)/ace4/adios/lib -L$(HOME)/ace4/mxml/lib -ladios -lmxml
+# ADIOS Common
+ENABLE_ADIOS = 1
+ifeq ($(ENABLE_ADIOS),1)
+  ADIOS_HOME ?= $(HOME)/ace4/adios
+  MXML_HOME ?= $(HOME)/ace4/mxml
+  OBJS += adiosamr.o
+  SRCS += adiosamr.c
+  CFLAGS += -DHAS_ADIOS -I$(ADIOS_HOME)/include
+  LIBS += -L$(ADIOS_HOME)/lib -ladios -L$(MXML_HOME)/lib -lmxml
+endif
 
 ### if HDF5_DIR set then enable HDF5 ###
 ifdef HDF5_DIR

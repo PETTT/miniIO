@@ -17,8 +17,9 @@ void cubesinit(cubeInfo *nfo, int task, int levels, int debug) {
   nfo->npoints = 0;
   nfo->debug = debug;
 
-  if (nfo->debug)
-    printf("Init cubes maxpoints=%d +++++++++++++++\n", maxpoints);
+  if (nfo->debug) {
+    printf("Init cubes maxpoints=%d task=%d +++++++++++++++\n", maxpoints, task);
+  }
     
   /* Allocate list for all possible cubes and points */
   nfo->points = (float *) malloc((size_t)task*maxpoints*3*sizeof(float) );
@@ -36,7 +37,7 @@ void cubesfree(cubeInfo *nfo) {
   nfo->data = NULL;
 }
 
-void refine(cubeInfo *nfo, int t, int rpId, float thres, float value, int level_start, float x_start, float y_start, float z_start, float dx_start, float dy_start, float dz_start, struct osn_context *osn, int maxLevel) {
+void refine(cubeInfo *nfo, int t, int rpId, float thres, int level_start, float x_start, float y_start, float z_start, float dx_start, float dy_start, float dz_start, struct osn_context *osn, int maxLevel) {
   double noisespacefreq = 10;    /* Spatial frequency of noise */
   double noisetimefreq = 0.25;    /* Temporal frequency of noise */
   float x_center, y_center, z_center, center_val;
@@ -45,31 +46,32 @@ void refine(cubeInfo *nfo, int t, int rpId, float thres, float value, int level_
   float conns[12];
   uint64_t nocts=0;        /* Number of cubes */
   int i;
-  int below = 0;
-  int above = 0;
-  int split = 0;
-  int exact = 0;
+  int split;
   int refinePathID = 0;
   int new_refinePathID = 0;
-  int inside = 0;
-  stack * octStack;
+  int inside;
+  stack octStack;
   float x, y, z, dx, dy, dz;
   int level;
+  int stacksize;
 
 
-  octStack =  new_stack(nfo->debug);
-
-  stack_push(octStack, x_start, y_start, z_start, dx_start, dy_start, dz_start, level_start);
-  nfo->npoints = 0;
-  nfo->ncubes = 0;
-
-  while (!stack_isempty(octStack)){
+  if (nfo->debug)
+      printf("Start start initial refinement on Block = %d\n", rpId);
+  
+  stacksize = 8 * (maxLevel+1);  
+  stack_new(&octStack, stacksize, nfo->debug);
+  
+  stack_push(&octStack, x_start, y_start, z_start, dx_start, dy_start, dz_start, level_start,  rpId);
+ 
+  while (!stack_isempty(&octStack)){
     split = 0;
-
+    inside = 0;
+    
     /* get next cube to test */
-    stack_pop(octStack, &x, &y, &z, &dx, &dy, &dz, &level);
+    stack_pop(&octStack, &x, &y, &z, &dx, &dy, &dz, &level,  &refinePathID);
 
-    refinePathID = rpId;
+    /* refinePathID = rpId; */
 
     if (nfo->debug)
       printf("Block refinePathID = %d\n", refinePathID);
@@ -109,15 +111,15 @@ void refine(cubeInfo *nfo, int t, int rpId, float thres, float value, int level_
     center_val = (float)open_simplex_noise4(osn, x_center*noisespacefreq,
 					    y_center*noisespacefreq, z_center*noisespacefreq, t*noisetimefreq);
 
-    if (nfo->debug)
-      printf("Block_Center: (%f %f, %f)=%f  level=%d\n", x_center, y_center, z_center, center_val, level);
-    
     if (center_val > thres)
       inside = 1;
       
     if (inside && (level < maxLevel))
       split = 1;
-  
+
+    if (nfo->debug)
+      printf("Block_Center: (%f %f, %f)=%f thres=%f  level=%d  inside=%d  split=%d\n", x_center, y_center, z_center, center_val, thres, level, inside, split);
+    
     /*   Refine if criteria satisfied */
     if (split) {
       xpts[0] = x;
@@ -152,12 +154,12 @@ void refine(cubeInfo *nfo, int t, int rpId, float thres, float value, int level_
 	if (nfo->debug)
 	  printf("Refine on cell %d: (%f %f, %f) ... refinePathID=%d\n", i+1, xpts[i], ypts[i], zpts[i], new_refinePathID);
 
-	stack_push(octStack, xpts[7-i], ypts[7-i], zpts[7-i], dx/2.0, dy/2.0, dz/2.0, level);
+	stack_push(&octStack, xpts[7-i], ypts[7-i], zpts[7-i], dx/2.0, dy/2.0, dz/2.0, level, new_refinePathID);
       }
     }
     else {
-      
       nfo->ncubes++;
+      
       /* - calulate value using open_simplex_noise4 */
       for (i=0; i<8; i++) {
 	uint64_t npoints3 = nfo->npoints * 3;
@@ -170,17 +172,23 @@ void refine(cubeInfo *nfo, int t, int rpId, float thres, float value, int level_
 	nfo->points[npoints3+2] = zpts[i];
 	
 	if (nfo->debug)
-	  printf("Point_%d: (%f %f, %f) = %f \n", i,nfo->points[npoints3],nfo->points[npoints3+1] , nfo->points[npoints3+2] , nfo->data[nfo->npoints] );
+	  printf("Cube_Point_%d: (%f %f, %f) = %f \n", i,nfo->points[npoints3],nfo->points[npoints3+1] , nfo->points[npoints3+2] , nfo->data[nfo->npoints] );
 
 	nfo->npoints++;
       }
 
       if (nfo->debug)
-	printf("Block %d connot be Refined ... refinement level=%d +++++++++++++++\n", refinePathID, level);
+	printf("CubeID %llu, refinePathID %d connot be Refined ... refinement level=%d  npoints=%llu +++++++++++++++\n", nfo->ncubes, refinePathID, level, nfo->npoints);
     
     }
   }
-  stack_delete(octStack);
+  
+  if (nfo->debug)
+    printf("Ended refinement on initial Block = %d\n", rpId);
+
+  stack_delete(&octStack);
+
+
 }
 
 void cubeprint(cubeInfo *nfo) {
@@ -188,108 +196,121 @@ void cubeprint(cubeInfo *nfo) {
 
   printf("NumBlock=%llu NumPoints=%llu +++++++++++++++\n", nfo->ncubes, nfo->npoints);
   /* for (i=0; i< nfo->npoints; i++) { */
-
   /*   printf("%f \n", nfo->data[i]); */
   /* } */
   
 }
 
 /* create a new stack */
-stack *new_stack(int debug) {
+void stack_new(stack *s, int maxsize, int debug) {
+  cubeItem *newcubes;
 
-  stack *s = malloc(sizeof(stack));
-  s->top = NULL;
+  newcubes = (cubeItem *) malloc((size_t)maxsize*sizeof(cubeItem) );
+ 
+  s->cubes = newcubes;
+  s->top = -1;
+  s->maxsize = maxsize;
   s->size = 0;
   s->debug = debug;
 
-  return s;
+  if (s->debug) {
+    printf("Created stack\n");
+  }  
 }
 
 /* check if stack is empty */
 int stack_isempty(stack *s) {
+  int empty=0;
 
-  return s->top == NULL ? 1 : 0;
-  
+  if (s->top < 0)
+    empty=1;
+
+  return empty;
 }
 
-void stack_clean(stack *s)
-{
-  float *xval, *yval, *zval, *deltax, *deltay, *deltaz;
-  int *level;
-  
-  while(!stack_isempty(s))
-    stack_pop(s, xval, yval, zval, deltax, deltay, deltaz, level);
+/* check if stack is full */
+int stack_isfull(stack *s) {
+  int full=0;
+
+  if (s->top >= s->maxsize)
+    full=1;
+
+  return full;
 }
 
-/* completly delete a stack */
+/* delete a stack */
 void stack_delete(stack *s) {
 
-   stack_clean(s);
-   free(s);
+  if (s->debug) {
+    printf("Start to delete stack\n");
+  }  
+  free(s->cubes);
+  s->cubes = NULL;
+  s->top = -1;
+  s->maxsize = 0;
+  s->size = 0;
+  s->debug = 0;
+  
+  if (s->debug) {
+    printf("Deleted stack\n");
+  }  
 }
 
-/* pushes a value onto the stack */
-/* return 1 if element was pushed on successfully, 0 otherwise */
-void stack_push(stack *s,  float xval, float yval, float zval, float deltax, float deltay, float deltaz, int level) {
+/* pushes ne element onto stack */
+void stack_push(stack *s,  float xval, float yval, float zval, float deltax, float deltay, float deltaz, int level, int r_id) {
 
- cubeItem *newNode = malloc(sizeof(cubeItem));
+  cubeItem newCube;
  
-  if (newNode == NULL) {
-    printf("ERROR: Could not push new cube data onto stack\n");
-    exit(0);
+  if (stack_isfull(s)) {
+    printf("ERROR: Stack FULL .... Could not push new cube data onto stack ...\n");
+    exit(1);
   }
-  
-  newNode->level = level;
-  newNode->x = xval;
-  newNode->y = yval;
-  newNode->z = zval;
-  newNode->dx = deltax;
-  newNode->dy = deltay;
-  newNode->dz = deltaz;
-      
-  newNode->next = s->top;
-  s->top = newNode;
-  s->size += 1;
+
+  newCube.r_id = r_id;
+  newCube.level = level;
+  newCube.x = xval;
+  newCube.y = yval;
+  newCube.z = zval;
+  newCube.dx = deltax;
+  newCube.dy = deltay;
+  newCube.dz = deltaz;
+
+  s->top++;
+  s->size++;
+  s->cubes[s->top] = newCube;
 
   if (s->debug) {
-    printf("Push Cube (%f %f, %f) stackszie=%d\n", s->top->x, s->top->y, s->top->z, s->size);
-    printf("Deltas (%f %f, %f)\n", s->top->dx, s->top->dy, s->top->dz);
+    printf("Pushed Cube LRcorner position  (%f %f, %f) stack_size=%d\n", s->cubes[s->top].x, s->cubes[s->top].y, s->cubes[s->top].z, s->size);
+    printf("Pushed Cube delta values (%f %f, %f)\n", s->cubes[s->top].dx, s->cubes[s->top].dy, s->cubes[s->top].dz);
   }
 }
 
 /* removes top element from stack,  */
-
-void stack_pop(stack *s, float *xval, float *yval, float *zval, float *deltax, float *deltay, float *deltaz, int *level) {
+void stack_pop(stack *s, float *xval, float *yval, float *zval, float *deltax, float *deltay, float *deltaz, int *level, int *r_id) {
 
   cubeItem *oldTop;
   
-  if (s == NULL || s->top == NULL )  {
-    printf("Stack size=%d\n", s->size);
-    printf("ERROR: Could not pop cube data off stack\n");
-    exit(0);
+  if (stack_isempty(s))  {
+    printf("ERROR: Stack EMPTY ... Could not pop cube data off stack ...\n");
+    exit(1);
   }
 
-  /* update data */
-  *level = s->top->level;
-  *xval = s->top->x;
-  *yval = s->top->y;
-  *zval = s->top->z;
-  *deltax = s->top->dx;
-  *deltay = s->top->dy;
-  *deltaz = s->top->dz;
-
-  if (s->debug) {
-    printf("Pop Cube (%f %f, %f)\n", s->top->x, s->top->y, s->top->z);
-    printf("Deltas (%f %f, %f)\n", s->top->dx, s->top->dy, s->top->dz);
-  }
   
-  oldTop = s->top;
-  s->top = oldTop->next;
-  s->size -= 1;
-  free(oldTop);
-  oldTop = NULL;
-
+  /* update data */
+  *r_id =  s->cubes[s->top].r_id;
+  *level = s->cubes[s->top].level;
+  *xval = s->cubes[s->top].x;
+  *yval = s->cubes[s->top].y;
+  *zval = s->cubes[s->top].z;
+  *deltax = s->cubes[s->top].dx;
+  *deltay = s->cubes[s->top].dy;
+  *deltaz = s->cubes[s->top].dz;
+  
   if (s->debug) {
-    printf("Stack size=%d\n", s->size);
+    printf("Popped Cube LRcorner position (%f %f, %f) stack_size=%d\n",  s->cubes[s->top].x, s->cubes[s->top].y, s->cubes[s->top].z, s->size);
+    printf("Popped Cube delta values (%f %f, %f)\n", s->cubes[s->top].dx, s->cubes[s->top].dy, s->cubes[s->top].dz);
   }
+
+   s->top--;
+   s->size--;
 }

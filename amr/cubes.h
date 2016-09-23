@@ -12,8 +12,9 @@ typedef struct cubeInfo {
 }cubeInfo;
 
 
-// holds an entry in the stack and point to the next element if there is any
+/* holds an entry in the stack (in this case cube information) */
 typedef struct cubeItem {
+  int r_id;
   int level;
   float x;
   float y;
@@ -21,15 +22,15 @@ typedef struct cubeItem {
   float dx;
   float dy;
   float dz;
-  struct cubeItem * next;
 } cubeItem;
 
-// the actual stack, holds the reference to the top and other meta information
-// all operation will only require a reference to this
+/* A stack that holds and array of stack items (in this case an array of cube information) */
 typedef struct {
-    cubeItem *top;
-    int size;
-    int debug;
+  cubeItem *cubes;
+  int top;
+  int size;
+  int maxsize;
+  int debug;
 } stack;
 
 
@@ -37,20 +38,20 @@ void cubesinit(cubeInfo *nfo, int task, int levels, int debug);
 
 void cubesfree(cubeInfo *nfo);
 
-void refine(cubeInfo *nfo, int t, int rpId, float thres, float value, int level_start, float x_start, float y_start,
+void refine(cubeInfo *nfo, int t, int rpId, float thres, int level_start, float x_start, float y_start,
 	    float z_start, float dx_start, float dy_start, float dz_start, struct osn_context *osn, int maxLevel);
 
 void cubeprint(cubeInfo *nfo);
 
-stack * new_stack(int debug);
+void stack_new(stack *astack, int maxsize, int debug);
 
 int stack_isempty(stack *s);
 
-void stack_clean(stack *s);
+int stack_isfull(stack *s);
 
 void stack_delete(stack *s);
 
-void stack_push(stack *s,  float xval, float yval, float zval, float deltax, float deltay, float deltaz, int level);
+void stack_push(stack *s,  float xval, float yval, float zval, float deltax, float deltay, float deltaz, int level, int r_id);
 
-void stack_pop(stack *s, float *xval, float *yval, float *zval, float *deltax, float *deltay, float *deltaz, int *level);
+void stack_pop(stack *s, float *xval, float *yval, float *zval, float *deltax, float *deltay, float *deltaz, int *level, int * r_id);
 

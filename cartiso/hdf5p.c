@@ -108,6 +108,8 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
       MPI_Abort(comm, 1);
     }
 
+    H5Pset_libver_bounds(plist_id, H5F_LIBVER_LATEST, H5F_LIBVER_LATEST);
+
     if(H5Pset_fapl_mpio(plist_id, MPI_COMM_WORLD, info) < 0) {
       printf("writehdf5p error: Could not create property list \n");
       MPI_Abort(comm, 1);

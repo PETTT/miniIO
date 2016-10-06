@@ -7,7 +7,7 @@ SRCS = amr.c cubes.c
 ### Add Output Modules Here ###
 
 # VTK Output Module
-ENABLE_VTKOUT = 1
+ENABLE_VTKOUT = 0
 ifeq ($(ENABLE_VTKOUT),1)
   OBJS += vtkout.o
   SRCS += vtkout.c
@@ -15,7 +15,7 @@ ifeq ($(ENABLE_VTKOUT),1)
 endif
 
 # ADIOS Common
-ENABLE_ADIOS = 1
+ENABLE_ADIOS = 0
 ifeq ($(ENABLE_ADIOS),1)
   ADIOS_HOME ?= $(HOME)/ace4/adios
   MXML_HOME ?= $(HOME)/ace4/mxml
@@ -29,8 +29,8 @@ endif
 ifdef HDF5_DIR
   LIBS += $(HDF5_DIR)/lib/libhdf5.a -lz -ldl
   INCLUDE += -I$(HDF5_DIR)/include
-  OBJS += hdf5i.o hdf5p.o
-  SRCS += hdf5i.c hdf5p.c
+  OBJS += hdf5amr.o
+  SRCS += hdf5amr.c
   CFLAGS += -DHAS_HDF5
 endif
 
@@ -44,12 +44,12 @@ amr: $(OSNOBJ) $(OBJS)
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 clean:
-	rm -f *.o amr
+	rm -f *.o amr *.h5
 
 depend:
 	makedepend -- $(CFLAGS) -- -Y $(SRCS)    # ignore warnings about system headers
 
 .c.o:
-	$(CC) $(CFLAGS) -c $<
+	$(CC) $(CFLAGS) -c $< $(INCLUDE)
 
 # DO NOT DELETE

@@ -18,6 +18,10 @@
 #  include "adiosamr.h"
 #endif
 
+#ifdef HAS_HDF5
+#  include "hdf5amr.h"
+#endif
+
 
 static const int fnstrmax = 4095;
 
@@ -26,23 +30,14 @@ void print_usage(int rank, const char *errstr);
 
 int main(int argc, char **argv) {
   int debug=0;
-  int i, j, k, a, numtask, block_id, realblock_id, tmp_id , t;  /* loop indices */
+  int i, j, k, a, block_id, t;  /* loop indices */
   int tt;                        /* Actual time step from tstart */
   float x, y, z;
-  double noisespacefreq = 10;    /* Spatial frequency of noise */
-  double noisetimefreq = 0.25;   /* Temporal frequency of noise */
   int tstart = 0;
   int nt = 50;                   /* Number of time steps */
-  int x_index, y_index, z_index; /* point index along each axis */
-  int xy_dims,  x_dims;
   float deltax, deltay, deltaz;
-  float deltax_center, deltay_center, deltaz_center;
   int maxLevel = 4;
   float threshold=0.0;
-  uint64_t numOcts=0;       /* Number of cubes */
-  uint64_t numPoints=0;     /* Number of points */
-  uint64_t numCoords=0;     /* Number of coords */
-  uint64_t numDarrays=0;    /* Number of data arrays */
   int inp = 0;              /* Number of tasks in i */
   int jnp = 0;              /* Number of tasks in j */
   int knp = 0;              /* Number of tasks in k */
@@ -50,12 +45,8 @@ int main(int argc, char **argv) {
   int nj = 0;
   int nk = 0;
   
-  int nx = 0;
-  int ny = 0;
-  int nz = 0;
   cubeInfo cubedata;
 
-  int numBlocks;
   struct osn_context *simpnoise;    /* Open simplex noise context */
   
   /* MPI vars */
@@ -74,6 +65,11 @@ int main(int argc, char **argv) {
   char      *adios_groupname="amr";
   char      *adios_method="MPI";
   struct adiosamrinfo adiosamr_nfo;
+#endif
+#ifdef HAS_HDF5
+  char      *hdf5_groupname="amr";
+  struct hdf5amrinfo hdf5amr_nfo;
+  int hdf5out = 0;
 #endif
   
   MPI_Init(&argc, &argv);
@@ -94,16 +90,20 @@ int main(int argc, char **argv) {
       threshold = strtof(argv[++a], NULL);
     } else if(!strcasecmp(argv[a], "--levels")) {
       maxLevel = atoi(argv[++a]);
-    } else if(!strcasecmp(argv[a], "--noisespacefreq")) {
-      noisespacefreq = strtod(argv[++a], NULL);
-    } else if(!strcasecmp(argv[a], "--noisetimefreq")) {
-      noisetimefreq = strtod(argv[++a], NULL);
     } else if(!strcasecmp(argv[a], "--tsteps")) {
       nt = atoi(argv[++a]);
     } else if(!strcasecmp(argv[a], "--tstart")) {
       tstart = atoi(argv[++a]);
     }else if(!strcasecmp(argv[a], "--debug")) {
       debug = 1;
+    }else if(!strcasecmp(argv[a], "--hdf5")) {
+#ifdef HAS_HDF5
+      hdf5out = 1;
+#else
+      if(rank == 0)   fprintf(stderr, "HDF5 option not available: %s\n\n", argv[a]);
+      print_usage(rank, NULL);
+      MPI_Abort(comm, 1); 
+#endif
     }
 
 #ifdef HAS_VTKOUT
@@ -174,8 +174,6 @@ int main(int argc, char **argv) {
   zs = ks * deltaz;
   
 
-  xy_dims = ni * nj;
-  x_dims = ni;
 
   /* Set up osn */
   open_simplex_noise(12345, &simpnoise);   /* Fixed seed, for now */
@@ -187,6 +185,13 @@ int main(int argc, char **argv) {
 #ifdef HAS_ADIOS
   adiosamr_init(&adiosamr_nfo, adios_method, adios_groupname, comm, rank, nprocs, nt);
   adiosamr_addxvar(&adiosamr_nfo, "data");
+#endif
+
+#ifdef HAS_HDF5
+  if(hdf5out) {
+    hdf5_init(&hdf5amr_nfo, hdf5_groupname, comm, rank, nprocs, nt);
+    hdf5_addxvar(&hdf5amr_nfo, "data");
+  }
 #endif
 
   if (debug) {
@@ -207,9 +212,6 @@ int main(int argc, char **argv) {
       for(j = 0; j < cnj; j++) {
 	x = xs;
 	for(i = 0; i < cni; i++, ii++) {
-	  x_index = (int) (x/deltax);
-	  y_index = (int) (y/deltay);
-	  z_index = (int) (z/deltaz);
 
 	  /* calculate block_id */
 	  block_id = ii;
@@ -247,7 +249,16 @@ int main(int argc, char **argv) {
       }
     adiosamr_write(&adiosamr_nfo, tt, cubedata.npoints, cubedata.points, &cubedata.data);
 #endif
-    
+
+#ifdef HAS_HDF5
+    if(hdf5out) {
+      if(rank == 0) {
+	printf("      Writing HDF5 ...\n");   fflush(stdout);
+      }
+      hdf5_write(&hdf5amr_nfo, tt, cubedata.npoints, cubedata.points, &cubedata.data);
+    }
+#endif
+
   }
 
   if (debug) 
@@ -256,6 +267,12 @@ int main(int argc, char **argv) {
   /* finalize ADIOS */
 #ifdef HAS_ADIOS
   adiosamr_finalize(&adiosamr_nfo);
+#endif
+
+#ifdef HAS_HDF5
+  if(hdf5out) {
+    hdf5_finalize(&hdf5amr_nfo);
+  }
 #endif
 
   open_simplex_noise_free(simpnoise);
@@ -289,10 +306,6 @@ void print_usage(int rank, const char *errstr)
 	  "      T : threshold value; Default: 0.0\n"
 	  "    --levels L : Maximum levels of refinement; valid values are >= 0 \n"
 	  "      L : max refinmentment levels value; Default: 8\n"
-	  "    --noisespacefreq FNS : Spatial frequency of noise function\n"
-	  "      FNS : space frequency value; Default: 10.0\n"
-	  "    --noisetimefreq FNT : Temporal frequency of noise function\n"
-	  "      FNT : time frequency value;  Default: 0.25\n"
 	  "    --tsteps NT : Number of time steps; valid values are > 0;  Default:  50)\n"
 	  "    --tstart TS : Starting time step; valid values are > 0;  Default: 0\n"
 	  );

@@ -43,8 +43,6 @@ void refine(cubeInfo *nfo, int t, int rpId, float thres, int level_start, float 
   float x_center, y_center, z_center, center_val;
   float xpts[8], ypts[8], zpts[8];
   float curdata[8];
-  float conns[12];
-  uint64_t nocts=0;        /* Number of cubes */
   int i;
   int split;
   int refinePathID = 0;
@@ -287,8 +285,6 @@ void stack_push(stack *s,  float xval, float yval, float zval, float deltax, flo
 
 /* removes top element from stack,  */
 void stack_pop(stack *s, float *xval, float *yval, float *zval, float *deltax, float *deltay, float *deltaz, int *level, int *r_id) {
-
-  cubeItem *oldTop;
   
   if (stack_isempty(s))  {
     printf("ERROR: Stack EMPTY ... Could not pop cube data off stack ...\n");

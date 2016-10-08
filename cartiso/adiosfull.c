@@ -98,14 +98,18 @@ void adiosfull_write(struct adiosfullinfo *nfo, int tstep)
 
     /* Allocate buffer large enough for all data to write, if not done already */
     bufneeded = (int)(groupsize/(1024*1024));
-    bufneeded += bufneeded/10 + 2;   /* Add an extra 10% & 2MB to be sure */
+    bufneeded += bufneeded/8 + 2;   /* Add an extra 12.5% & 2MB to be sure */
     if(nfo->bufallocsize < bufneeded) {
+#       if ADIOS_VERSION_GE(1,10,0)
+        adios_set_max_buffer_size(bufneeded);
+#       else
         adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, bufneeded);
+#       endif
         nfo->bufallocsize = bufneeded;
     }
 
     /* Set filename */
-    snprintf(fname, fnstrmax, "%s.%0*d.bp", nfo->name, timedigits, tstep);
+    snprintf(fname, fnstrmax, "%s_%0*d", nfo->name, timedigits, tstep);
 
     /* Open & Write */
     ret = adios_open(&handle, nfo->name, fname, "w", nfo->comm);
@@ -113,7 +117,9 @@ void adiosfull_write(struct adiosfullinfo *nfo, int tstep)
         fprintf(stderr, "Error opening ADIOS file: %s\n", fname);
         return;
     }
+#   if ADIOS_VERSION_LE(1,9,0)
     adios_group_size(handle, groupsize, &totalsize);
+#   endif
 
     adios_write(handle, "rank", &nfo->rank);
     adios_write(handle, "tstep", &tstep);

@@ -90,7 +90,11 @@ void adiosiso_write(struct adiosisoinfo *nfo, int tstep, uint64_t ntris, float *
     bufneeded = (int)(groupsize/(1024*1024));
     bufneeded += bufneeded/10 + 5;   /* Add an extra 10% & 5MB to be sure */
     if(nfo->bufallocsize < bufneeded) {
+#       if ADIOS_VERSION_GE(1,10,0)
+        adios_set_max_buffer_size(bufneeded);
+#       else
         adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, bufneeded);
+#       endif
         nfo->bufallocsize = bufneeded;
     }
 
@@ -120,7 +124,9 @@ void adiosiso_write(struct adiosisoinfo *nfo, int tstep, uint64_t ntris, float *
         fprintf(stderr, "Error opening ADIOS file: %s\n", fname);
         return;
     }
+#   if ADIOS_VERSION_LE(1,9,0)
     adios_group_size(handle, groupsize, &totalsize);
+#   endif
 
     adios_write(handle, "rank", &nfo->rank);
     adios_write(handle, "tstep", &tstep);

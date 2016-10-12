@@ -29,6 +29,10 @@
 #  include "adiosiso.h"
 #endif
 
+#ifdef HAS_HDF5
+#  include "hdf5cartiso.h"
+#endif
+
 /*## End of Output Module Includes ##*/
 
 void print_usage(int rank, const char *errstr)
@@ -98,6 +102,10 @@ void print_usage(int rank, const char *errstr)
 #ifdef HAS_HDF5
     fprintf(stderr, "    --hdf5i : Enable HDF5 full output.\n");
     fprintf(stderr, "    --hdf5p : Enable HDF5 isosurface output.\n");
+    fprintf(stderr, "    --hdf5i_chunk CI CJ CK : Chunk Size (CI,CJ,CK); full output.\n"
+                    "      valid values are CI <= NI, CJ <= NJ, CK <= NK\n");
+    fprintf(stderr, "    --hdf5p_chunk CI : Integer percentage of triangles (CI); isosurface output.\n"
+                    "      valid values are 0 < CI <= 100 \n");
 #endif
     /*## End of Output Module Usage Strings ##*/
 }
@@ -207,6 +215,8 @@ int main(int argc, char **argv)
 #ifdef HAS_HDF5
     int hdf5iout = 0;
     int hdf5pout = 0;
+    hsize_t *hdf5i_chunk=NULL;
+    hsize_t *hdf5p_chunk=NULL;
 #endif
 
     /*## End of Output Module Variables ##*/
@@ -294,6 +304,16 @@ int main(int argc, char **argv)
         }
         else if(!strcasecmp(argv[a], "--hdf5p")) {
 	    hdf5pout = 1;
+        }
+        else if(!strcasecmp(argv[a], "--hdf5i_chunk")) {
+	  hdf5i_chunk = malloc(3 * sizeof(hsize_t));
+	  hdf5i_chunk[0] = (hsize_t)strtoul(argv[++a], NULL, 0);
+	  hdf5i_chunk[1] = (hsize_t)strtoul(argv[++a], NULL, 0);
+	  hdf5i_chunk[2] = (hsize_t)strtoul(argv[++a], NULL, 0);
+        }
+        else if(!strcasecmp(argv[a], "--hdf5p_chunk")) {
+	  hdf5p_chunk = malloc(1 * sizeof(hsize_t));
+	  hdf5p_chunk[0] = (hsize_t)strtoul(argv[++a], NULL, 0);
         }
 #endif
 
@@ -516,10 +536,10 @@ int main(int argc, char **argv)
             }
             writehdf5i("cartiso", "value", comm, rank, nprocs, tt, ni, nj, nk,
                       is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
-		      deltax, deltay, deltaz, cni, cnj, cnk, data);
+		       deltax, deltay, deltaz, cni, cnj, cnk, data, hdf5i_chunk);
             writehdf5i("cartiso", "noise", comm, rank, nprocs, tt, ni, nj, nk,
                       is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
-                      deltax, deltay, deltaz, cni, cnj, cnk, xdata);
+                      deltax, deltay, deltaz, cni, cnj, cnk, xdata, hdf5i_chunk);
         }
 #endif
 
@@ -569,7 +589,7 @@ int main(int argc, char **argv)
                 printf("      Writing hdf5p...\n");   fflush(stdout);
             }
             writehdf5p("cartiso", "iso", comm, rank, nprocs, tt, iso.ntris,
-                      iso.points, iso.norms, iso.xvals, "noise");
+		       iso.points, iso.norms, iso.xvals, "noise", hdf5p_chunk);
         }
 #endif
 
@@ -595,6 +615,11 @@ int main(int argc, char **argv)
     isofree(&iso);
     free(data);
     free(xdata);
+
+#ifdef HAS_HDF5
+    free(hdf5i_chunk);
+    free(hdf5p_chunk);
+#endif
  
     MPI_Finalize();
  

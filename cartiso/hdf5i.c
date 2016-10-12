@@ -20,7 +20,7 @@ write_xdmf_xml_value(char *fname, char *fname_xdmf, char *varname, float deltax,
 
 void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs, 
                int tstep, int ni, int nj, int nk, int is, int ie, int js, int je,
-		int ks, int ke, float deltax, float deltay, float deltaz, int nci, int ncj, int nck, float *data)
+		int ks, int ke, float deltax, float deltay, float deltaz, int nci, int ncj, int nck, float *data, hsize_t *h5_chunk)
 {
     char fname[fnstrmax+1];
     char fname_xdmf[fnstrmax+1];
@@ -35,6 +35,7 @@ void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     hsize_t start[3], count[3];
     hsize_t dims[3];
     herr_t err;
+    hid_t chunk_pid;
 
     snprintf(fname, fnstrmax, "cart.%s_t%0*d.h5", varname, timedigits, tstep);
     snprintf(fname_xdmf, fnstrmax, "cart.%s_t%0*d.xmf", varname, timedigits, tstep);
@@ -55,9 +56,20 @@ void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
       dims[2] = (hsize_t)nk;
       filespace = H5Screate_simple(3, dims, NULL);
       
+      chunk_pid = H5P_DEFAULT;
+
+      if(h5_chunk) {
+	chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
+	H5Pset_chunk(chunk_pid, 3, h5_chunk);
+      }
+
       /* Create the dataset with default properties and close filespace. */
-      did = H5Dcreate(file_id, varname, H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      did = H5Dcreate(file_id, varname, H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
       H5Dclose(did);
+
+      if(h5_chunk)
+	H5Pclose(chunk_pid);
+
       H5Sclose(filespace);
 
       H5Fclose(file_id);

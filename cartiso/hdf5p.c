@@ -20,7 +20,7 @@ write_xdmf_xml(char *fname, char *fname_xdmf, uint64_t npoints, char *xname);
 
 void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs, 
                int tstep, uint64_t ntris, float *points, float *norms, 
-               float *xvals, char *xname)
+		float *xvals, char *xname, hsize_t *h5_chunk)
 {
     char fname[fnstrmax+1];
     char fname_xdmf[fnstrmax+1];
@@ -40,6 +40,7 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     int j;
     uint64_t *temparr;
     herr_t err;
+    hid_t chunk_pid;
     
 
     snprintf(fname, fnstrmax, "cartiso_t%0*d.h5", timedigits, tstep);
@@ -69,13 +70,24 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
       /* Create Grid Group */
       group_id = H5Gcreate(file_id, "grid points", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
+      chunk_pid = H5P_DEFAULT;
+
+      if(h5_chunk) {
+	hsize_t chunk = (dims[0] * h5_chunk[0])/100;
+	chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
+	H5Pset_chunk(chunk_pid, 1, &chunk);
+      }
+
       /* Create the dataset with default properties */
-      did = H5Dcreate(group_id, "xyz", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      did = H5Dcreate(group_id, "xyz", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
       H5Dclose(did);
 
       /* Create the dataset with default properties and close filespace. */
-      did = H5Dcreate(group_id, "Normals", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      did = H5Dcreate(group_id, "Normals", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
       H5Dclose(did);
+
+      if(h5_chunk)
+	H5Pclose(chunk_pid);
 
       H5Sclose(filespace);
       H5Gclose(group_id);

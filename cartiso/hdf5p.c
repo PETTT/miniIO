@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <mpi.h>
+#include <inttypes.h>
 
 #include "hdf5.h"
 
@@ -267,23 +268,23 @@ write_xdmf_xml(char *fname, char *fname_xdmf, uint64_t npoints, char *xname)
     fprintf(xmf, "<Xdmf Version=\"3.0\">\n");
     fprintf(xmf, " <Domain>\n");
     fprintf(xmf, "  <Grid Name=\"Unstructured Mesh\">\n");
-    fprintf(xmf, "    <Topology TopologyType=\"Triangle\" NumberOfElements=\"%llu\">\n", npoints);
-    fprintf(xmf, "      <DataItem Dimensions=\"%llu\" Format=\"HDF\">\n", npoints*3);
+    fprintf(xmf, "    <Topology TopologyType=\"Triangle\" NumberOfElements=\"%" PRIu64"\">\n", npoints);
+    fprintf(xmf, "      <DataItem Dimensions=\"%" PRIu64"\" Format=\"HDF\">\n", npoints*3);
     fprintf(xmf, "      %s:/conn\n",fname);
     fprintf(xmf, "      </DataItem>\n");
     fprintf(xmf, "    </Topology>\n");
     fprintf(xmf, "    <Geometry GeometryType=\"XYZ\">\n");
-    fprintf(xmf, "       <DataItem Name=\"XYZ\" Dimensions=\"%llu\" Format=\"HDF\">\n", 9*npoints);
+    fprintf(xmf, "       <DataItem Name=\"XYZ\" Dimensions=\"%" PRIu64"\" Format=\"HDF\">\n", 9*npoints);
     fprintf(xmf, "        %s:/grid points/xyz\n",fname);
     fprintf(xmf, "       </DataItem>\n");
     fprintf(xmf, "    </Geometry>\n");
     fprintf(xmf, "    <Attribute Name=\"%s\" AttributeType=\"Scalar\" Center=\"Node\">\n", xname);
-    fprintf(xmf, "       <DataItem Dimensions=\"%llu\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", npoints*3);
+    fprintf(xmf, "       <DataItem Dimensions=\"%" PRIu64"\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", npoints*3);
     fprintf(xmf, "        %s:/%s\n", fname, xname);
     fprintf(xmf, "       </DataItem>\n");
     fprintf(xmf, "    </Attribute>\n");
     fprintf(xmf, "    <Attribute Name=\"Normals\" AttributeType=\"Vector\" Center=\"Node\">\n");
-    fprintf(xmf, "       <DataItem Dimensions=\"%llu\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", npoints*9);
+    fprintf(xmf, "       <DataItem Dimensions=\"%" PRIu64"\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", npoints*9);
     fprintf(xmf, "        %s:/grid points/Normals\n", fname);
     fprintf(xmf, "       </DataItem>\n");
     fprintf(xmf, "    </Attribute>\n");

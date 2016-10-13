@@ -56,10 +56,10 @@ void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
       dims[2] = (hsize_t)nk;
       filespace = H5Screate_simple(3, dims, NULL);
       
-      chunk_pid = H5P_DEFAULT;
+      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
 
       if(h5_chunk) {
-	chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
+	H5Pset_layout(chunk_pid, H5D_CHUNKED);
 	H5Pset_chunk(chunk_pid, 3, h5_chunk);
       }
 

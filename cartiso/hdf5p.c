@@ -70,12 +70,14 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 
       /* Create Grid Group */
       group_id = H5Gcreate(file_id, "grid points", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-      chunk_pid = H5P_DEFAULT;
+      
+      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
 
       if(h5_chunk) {
+
+	H5Pset_layout(chunk_pid, H5D_CHUNKED);
+
 	hsize_t chunk = (dims[0] * h5_chunk[0])/100;
-	chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
 	H5Pset_chunk(chunk_pid, 1, &chunk);
       }
 

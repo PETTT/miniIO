@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <mpi.h>
+#include <inttypes.h>
 
 #include "hdf5.h"
 
@@ -20,7 +21,7 @@ write_xdmf_xml(char *fname, char *fname_xdmf, uint64_t npoints, char *xname);
 
 void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs, 
                int tstep, uint64_t ntris, float *points, float *norms, 
-               float *xvals, char *xname)
+		float *xvals, char *xname, hsize_t *h5_chunk)
 {
     char fname[fnstrmax+1];
     char fname_xdmf[fnstrmax+1];
@@ -40,6 +41,7 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     int j;
     uint64_t *temparr;
     herr_t err;
+    hid_t chunk_pid;
     
 
     snprintf(fname, fnstrmax, "cartiso_t%0*d.h5", timedigits, tstep);
@@ -68,14 +70,27 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 
       /* Create Grid Group */
       group_id = H5Gcreate(file_id, "grid points", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      
+      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
+
+      if(h5_chunk) {
+
+	H5Pset_layout(chunk_pid, H5D_CHUNKED);
+
+	hsize_t chunk = (dims[0] * h5_chunk[0])/100;
+	H5Pset_chunk(chunk_pid, 1, &chunk);
+      }
 
       /* Create the dataset with default properties */
-      did = H5Dcreate(group_id, "xyz", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      did = H5Dcreate(group_id, "xyz", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
       H5Dclose(did);
 
       /* Create the dataset with default properties and close filespace. */
-      did = H5Dcreate(group_id, "Normals", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      did = H5Dcreate(group_id, "Normals", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
       H5Dclose(did);
+
+      if(h5_chunk)
+	H5Pclose(chunk_pid);
 
       H5Sclose(filespace);
       H5Gclose(group_id);
@@ -255,23 +270,23 @@ write_xdmf_xml(char *fname, char *fname_xdmf, uint64_t npoints, char *xname)
     fprintf(xmf, "<Xdmf Version=\"3.0\">\n");
     fprintf(xmf, " <Domain>\n");
     fprintf(xmf, "  <Grid Name=\"Unstructured Mesh\">\n");
-    fprintf(xmf, "    <Topology TopologyType=\"Triangle\" NumberOfElements=\"%llu\">\n", npoints);
-    fprintf(xmf, "      <DataItem Dimensions=\"%llu\" Format=\"HDF\">\n", npoints*3);
+    fprintf(xmf, "    <Topology TopologyType=\"Triangle\" NumberOfElements=\"%" PRIu64"\">\n", npoints);
+    fprintf(xmf, "      <DataItem Dimensions=\"%" PRIu64"\" Format=\"HDF\">\n", npoints*3);
     fprintf(xmf, "      %s:/conn\n",fname);
     fprintf(xmf, "      </DataItem>\n");
     fprintf(xmf, "    </Topology>\n");
     fprintf(xmf, "    <Geometry GeometryType=\"XYZ\">\n");
-    fprintf(xmf, "       <DataItem Name=\"XYZ\" Dimensions=\"%llu\" Format=\"HDF\">\n", 9*npoints);
+    fprintf(xmf, "       <DataItem Name=\"XYZ\" Dimensions=\"%" PRIu64"\" Format=\"HDF\">\n", 9*npoints);
     fprintf(xmf, "        %s:/grid points/xyz\n",fname);
     fprintf(xmf, "       </DataItem>\n");
     fprintf(xmf, "    </Geometry>\n");
     fprintf(xmf, "    <Attribute Name=\"%s\" AttributeType=\"Scalar\" Center=\"Node\">\n", xname);
-    fprintf(xmf, "       <DataItem Dimensions=\"%llu\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", npoints*3);
+    fprintf(xmf, "       <DataItem Dimensions=\"%" PRIu64"\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", npoints*3);
     fprintf(xmf, "        %s:/%s\n", fname, xname);
     fprintf(xmf, "       </DataItem>\n");
     fprintf(xmf, "    </Attribute>\n");
     fprintf(xmf, "    <Attribute Name=\"Normals\" AttributeType=\"Vector\" Center=\"Node\">\n");
-    fprintf(xmf, "       <DataItem Dimensions=\"%llu\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", npoints*9);
+    fprintf(xmf, "       <DataItem Dimensions=\"%" PRIu64"\" NumberType=\"Float\" Precision=\"4\" Format=\"HDF\">\n", npoints*9);
     fprintf(xmf, "        %s:/grid points/Normals\n", fname);
     fprintf(xmf, "       </DataItem>\n");
     fprintf(xmf, "    </Attribute>\n");

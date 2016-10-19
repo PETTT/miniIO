@@ -9,6 +9,7 @@
 #include <math.h>
 #include <mpi.h>
 #include "open-simplex-noise.h"
+#include "timer.h"
 
 
 /* #include <limits.h> */
@@ -59,9 +60,11 @@ int main(int argc, char **argv)
   float mask_thres=0.0;             /* mask threshold */
   int mask_thres_index;
   struct osn_context *simpnoise;    /* Open simplex noise context */
+  double heighttime, computetime, outtime;   /* Timers */
   
   const int num_varnames=4;
   char *varnames[num_varnames];
+  
 
   /* MPI vars */
   MPI_Comm comm = MPI_COMM_WORLD;
@@ -222,6 +225,8 @@ int main(int argc, char **argv)
   /* generate masked grid */
   /* Spatial loops */
   size_t ii;     /* data index */
+
+  timer_tick(&heighttime, comm, 1);
   z = zs;
   for(k = 0, ii = 0; k < cnk; k++) {
     y = ys;
@@ -311,10 +316,13 @@ int main(int argc, char **argv)
     }
     z += deltaz;
   }	
-
+  timer_tock(&heighttime);
+ 
   /* generate ocean land data */
   for(t = 0, tt = tstart; t < nt; t++, tt++) {
     /* Spatial loops */
+
+    timer_tick(&computetime, comm, 1);
     z = zs;
     for(k = 0, ii = 0; k < cnk; k++) {
       y = ys;
@@ -336,8 +344,10 @@ int main(int argc, char **argv)
       }
       z += deltaz;
     }	
+    timer_tock(&computetime);
 
-    
+
+    timer_tick(&outtime, comm, 1);
 #ifdef HAS_ADIOS
 
     adiosstruct_write(&adiosstruct_nfo, tt);
@@ -357,6 +367,10 @@ int main(int argc, char **argv)
     }
 #endif
 
+    timer_tock(&outtime);
+    timer_collectprintstats(computetime, comm, 0, "   Compute");
+    timer_collectprintstats(outtime, comm, 0, "   Output");
+    timer_collectprintstats(heighttime, comm, 0, "   Height");
 
   }
 

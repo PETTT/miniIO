@@ -9,6 +9,7 @@
 #include <mpi.h>
 #include "open-simplex-noise.h"
 #include "cubes.h"
+#include "timer.h"
 
 #ifdef HAS_VTKOUT
 #include "vtkout.h"
@@ -22,8 +23,6 @@
 #  include "hdf5amr.h"
 #endif
 
-
-static const int fnstrmax = 4095;
 
 void print_usage(int rank, const char *errstr);
 
@@ -44,10 +43,9 @@ int main(int argc, char **argv) {
   int ni = 0;               /* Global grid size */
   int nj = 0;
   int nk = 0;
-  
   cubeInfo cubedata;
-
   struct osn_context *simpnoise;    /* Open simplex noise context */
+  double computetime, outtime;   /* Timers */
   
   /* MPI vars */
   MPI_Comm comm = MPI_COMM_WORLD;
@@ -199,13 +197,18 @@ int main(int argc, char **argv) {
   }
   
   for(t = 0, tt = tstart; t < nt; t++, tt++) {
+    size_t ii;     /* data index */
+    
     cubedata.npoints = 0;
     cubedata.ncubes = 0;
+
     
     if (debug) {
 	printf("Hi: rank=%d: %d of %d:  timestep=%d\n", rank, rank+1, nprocs, tt);
     }
-    size_t ii;     /* data index */
+
+    timer_tick(&computetime, comm, 1);
+   
     z = zs;
     for(k = 0, ii = 0; k < cnk; k++) {
       y = ys;
@@ -228,10 +231,13 @@ int main(int argc, char **argv) {
       z += deltaz;
     }	
 
+    timer_tock(&computetime);
+    
     /* print out data */
     if (debug)  {
       cubeprint(&cubedata);
     }
+
 
 #ifdef HAS_VTKOUT 
     if(vtkout) {
@@ -242,6 +248,8 @@ int main(int argc, char **argv) {
 	       cubedata.points, cubedata.data, "data", debug);
     }
 #endif
+
+    timer_tick(&outtime, comm, 1);
     
 #ifdef HAS_ADIOS
       if(rank == 0) {
@@ -259,8 +267,13 @@ int main(int argc, char **argv) {
     }
 #endif
 
+    
+    timer_tock(&outtime);
+    timer_collectprintstats(computetime, comm, 0, "   Compute");
+    timer_collectprintstats(outtime, comm, 0, "   Output");
   }
 
+   
   if (debug) 
     printf("Finalizing:rank %d \n", rank);
   

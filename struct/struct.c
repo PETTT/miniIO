@@ -108,6 +108,7 @@ int main(int argc, char **argv)
       nk = atoi(argv[++a]);
     } else if(!strcasecmp(argv[a], "--maskthreshold")) {
       mask_thres = strtof(argv[++a], NULL);
+      bot_mask_thres = (mask_thres+1.0)/2;
     } else if(!strcasecmp(argv[a], "--noisespacefreq")) {
       noisespacefreq = strtod(argv[++a], NULL);
     } else if(!strcasecmp(argv[a], "--noisetimefreq")) {

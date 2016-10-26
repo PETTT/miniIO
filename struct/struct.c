@@ -57,7 +57,8 @@ int main(int argc, char **argv)
   int maskTindex;
   int *ola_mask;
   int *ol_mask;
-  float mask_thres=0.0;             /* mask threshold */
+  float mask_thres=0.0;     /* upper mask threshold  (range -1 to 1) */
+  float bot_mask_thres=0.5; /* bottom mask threshold (range 0.0 to (mask_thres+1)/2 ) */
   int mask_thres_index;
   struct osn_context *simpnoise;    /* Open simplex noise context */
   double heighttime, computetime, outtime;   /* Timers */
@@ -184,7 +185,8 @@ int main(int argc, char **argv)
   xy_dims = ni * nj;
   x_dims = ni;
 
-  /* mask_thres_index = (int) mask_thres/deltaz; */
+  /* adjust mask threshold  to compensate by bottom threshold */
+  mask_thres = mask_thres - bot_mask_thres;
   mask_thres_index = (int) ( ((mask_thres+1)/2) * (nk-1));
   maskTindex = nk-1;
   
@@ -239,8 +241,9 @@ int main(int argc, char **argv)
 
 	/* calculate point index */
 	point_id = (z_index * xy_dims) + (y_index * x_dims) + x_index;
-	    
-	height[ii] =  (float)open_simplex_noise2(simpnoise, x*noisespacefreq, y*noisespacefreq);
+
+	/* Get height and subtract bottom threshold */
+	height[ii] =  (float)open_simplex_noise2(simpnoise, x*noisespacefreq, y*noisespacefreq)  - bot_mask_thres;
 
 	/* height_index = (int) height[ii]/deltaz; */
 	height_index = (int) (((height[ii]+1)/2) * (nk-1));

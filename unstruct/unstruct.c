@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <mpi.h>
+#include "timer.h"
 #include "open-simplex-noise.h"
 
 /*## Add Output Modules' Includes Here ##*/
@@ -152,6 +153,7 @@ int main(int argc, char **argv)
     float *xpts, *ypts, *zpts;    /* Grid points */
     uint64_t nelems2, *conns2;      /* Number of grid triangles & connection array in 2D */
     uint64_t nelems3, *conns3;      /* Number of triangular prisms & connection array */
+    uint64_t datasize;              /* Size of all grid and variable expected to be output */
     float *data;                  /* Data array */
     float uround0 = 0.3f;        /* Superquadric roundness u parameter, starting */
     float vround0 = 0.3f;        /* Superquadric roundness v parameter, starting */
@@ -161,6 +163,7 @@ int main(int argc, char **argv)
     double noisespacefreq = 10;    /* Spatial frequency of noise */
     double noisetimefreq = 0.25;    /* Temporal frequency of noise */
     struct osn_context *osn;    /* Open simplex noise context */
+    double gridtime, computetime, outtime;    /* Timers */
 
     /* MPI vars */
     int rank, nprocs;
@@ -269,9 +272,9 @@ int main(int argc, char **argv)
     nptstask = (uint64_t)nu * nv * nlyr;   /* nptstask won't be exactly as requested */
     npoints = nptstask * nprocs;
     if(rank == 0)  
-        printf("Actual points: %llu, points per task: %llu\n"
-                "uprocs: %d, vprocs: %d\n"
-                "nu: %d, nv: %d, nlyr: %d\n", 
+        printf("Actual points: %llu , points per task: %llu\n"
+                "uprocs: %d , vprocs: %d\n"
+                "nu: %d , nv: %d , nlyr: %d\n", 
                 npoints, nptstask, uprocs, vprocs, nu, nv, nlyr); 
 
     /* Divide spherical topology tiles along u,v */
@@ -283,16 +286,18 @@ int main(int argc, char **argv)
     u1 = (urank+1) * 2 * M_PI / uprocs - M_PI;   /* #points to be continuous across task */
     v0 = vrank * M_PI / vprocs - M_PI/2;
     v1 = (vrank+1) * M_PI / vprocs - M_PI/2;
-    /*DBG*/printf("%d: %f-%f, %f-%f, %f, %f\n", rank, u0, u1, v0, v1, du, dv);
+    /*DBG printf("%d: %f-%f, %f-%f, %f, %f\n", rank, u0, u1, v0, v1, du, dv); */
         
     /* Allocate grid points */
     xpts = (float *) malloc(nptstask*sizeof(float));
     ypts = (float *) malloc(nptstask*sizeof(float));
     zpts = (float *) malloc(nptstask*sizeof(float));
+    datasize = nptstask*sizeof(float)*3;
 
     /* Add surface connections, all are triangles */
     nelems2 = (nu-1) * (nv-1) * 2;
     conns2 = (uint64_t *) malloc(nelems2*3*sizeof(uint64_t));
+    datasize += nelems2*3*sizeof(uint64_t);
     for(i = 0, ii = 0; i < nu-1; i++) {
         for(j = 0; j < nv-1; j++) {
             uint64_t ndx = rank * nptstask + i * nv + j;   /* Global point index */
@@ -308,6 +313,7 @@ int main(int argc, char **argv)
     /* Add volume connections, all are triangular prisms extended from base 2D grid */
     nelems3 = nelems2 * (nlyr-1);
     conns3 = (uint64_t *) malloc(nelems3*6*sizeof(uint64_t));
+    datasize += nelems3*6*sizeof(uint64_t);
     for(k = 0, ii = 0; k < nlyr-1; k++) {
         uint64_t euv, iuv, nuv = nu * nv * k, nuv2 = nu * nv * (k+1);
         for(euv = 0, iuv = 0; euv < nelems2; euv++) {
@@ -325,6 +331,13 @@ int main(int argc, char **argv)
 
     /* Allocate data */
     data = (float *) malloc(nptstask*sizeof(float));
+    datasize += nptstask*sizeof(float);
+
+    if(rank == 0) {
+        printf("nelems2: %llu , nelems3: %llu\n"
+               "data size per task = %llu , all tasks = %llu\n", 
+               nelems2, nelems3, datasize, datasize*nprocs);
+    }
 
     /*## Add Output Modules' Initialization Here ##*/
 
@@ -345,6 +358,8 @@ int main(int argc, char **argv)
             printf("t = %d\n", t);   fflush(stdout);
         }
 
+        timer_tick(&gridtime, MPI_COMM_WORLD, 1);
+
         /* Generate grid points with superquadric */
         uround = (1-tpar)*uround0 + tpar*uround1;
         vround = (1-tpar)*vround0 + tpar*vround1;
@@ -364,18 +379,24 @@ int main(int argc, char **argv)
             }
         }
 
+        timer_tock(&gridtime);
+        timer_tick(&computetime, MPI_COMM_WORLD, 1);
+
         /* Set data */
         for(i = 0; i < nptstask; i++) {
             data[i] = (float)open_simplex_noise4(osn, xpts[i]*noisespacefreq,
                     ypts[i]*noisespacefreq, zpts[i]*noisespacefreq, t*noisetimefreq);
         }
 
+        timer_tock(&computetime);
+        timer_tick(&outtime, MPI_COMM_WORLD, 1);
+
         /*## Add Output Modules' Function Calls Per Timestep Here ##*/
         
 #ifdef HAS_PRZM
         if(przmout) {
             if(rank == 0) {
-                printf("      Writing przm...\n");   fflush(stdout);
+                printf("   Writing przm...\n");   fflush(stdout);
             }
             writeprzm("unstruct", MPI_COMM_WORLD, t, nptstask, xpts, ypts, zpts,
                       nelems3, conns3, nelems2, conns2, "noise", data);
@@ -385,7 +406,7 @@ int main(int argc, char **argv)
 #ifdef HAS_ADIOS
         if(adiosmethod) {
             if(rank == 0) {
-                printf("      Writing adios...\n");    fflush(stdout);
+                printf("   Writing adios...\n");    fflush(stdout);
             }
             adiosunstruct_write(&adiosnfo, t, xpts, ypts, zpts, conns3, conns2, &data);
         }
@@ -394,7 +415,7 @@ int main(int argc, char **argv)
 #ifdef HAS_HDF5
         if(hdf5out) {
             if(rank == 0) {
-                printf("      Writing hdf5...\n");   fflush(stdout);
+                printf("   Writing hdf5...\n");   fflush(stdout);
             }
             writehdf5("unstruct", MPI_COMM_WORLD, t, npoints, nptstask, xpts, ypts, zpts,
                       nelems3, conns3, nelems2, conns2, "noise", data);
@@ -405,6 +426,10 @@ int main(int argc, char **argv)
 
         /*## End of Output Module Functions Calls Per Timestep ##*/
 
+        timer_tock(&outtime);
+        timer_collectprintstats(gridtime, MPI_COMM_WORLD, 0, "   Grid");
+        timer_collectprintstats(computetime, MPI_COMM_WORLD, 0, "   Compute");
+        timer_collectprintstats(outtime, MPI_COMM_WORLD, 0, "   Output");
     }
 
     /*## Add Output Modules' Cleanup Here ##*/

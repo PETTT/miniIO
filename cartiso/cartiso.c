@@ -119,7 +119,7 @@ void print_stats(MPI_Comm comm, int rank, int nprocs, uint64_t ntris)
 
     if(rank == 0)
         rntris = (uint64_t *) malloc(nprocs*sizeof(uint64_t));
-    MPI_Gather(&ntris, 1, MPI_UINT64_T, rntris, 1, MPI_UINT64_t, 0, comm);
+    MPI_Gather(&ntris, 1, MPI_UINT64_T, rntris, 1, MPI_UINT64_T, 0, comm);
 
     if(rank == 0) {
         for(i = 0; i < nprocs; i++) {

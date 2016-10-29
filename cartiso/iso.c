@@ -246,12 +246,12 @@ void isoinit(struct isoinfo *nfo, float x0, float y0, float z0,
     nfo->xd = xd;   nfo->yd = yd;   nfo->zd = zd;
     nfo->xdim = xdim;   nfo->ydim = ydim;   nfo->zdim = zdim;
     nfo->ntris = 0;
-    /* Allocate list for all possible triangles */
-    /*    max of 4 tris per cell */
-    nfo->points = (float *) malloc( xdim1*ydim1*zdim1*3*4*sizeof(float) );
-    nfo->norms = (float *) malloc( xdim1*ydim1*zdim1*3*4*sizeof(float) );
-    if(numxarrays > 0)
-        nfo->xvals = (float *) malloc( xdim1*ydim1*zdim1*4*sizeof(float) );
+    /* Allocate list for maximum possible triangles; overkill, but simple */
+    /*    max of 5 tris per cell, 3 points per tri, 3 dims per point */
+    nfo->points = (float *) malloc( xdim1*ydim1*zdim1*5*3*3*sizeof(float) );
+    nfo->norms = (float *) malloc( xdim1*ydim1*zdim1*5*3*3*sizeof(float) );
+    if(numxarrays > 0)       /* same as above, but 1 value per point */
+        nfo->xvals = (float *) malloc( xdim1*ydim1*zdim1*5*3*sizeof(float) );
     else
         nfo->xvals = NULL;
     if(numxarrays > 1)

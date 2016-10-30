@@ -109,7 +109,6 @@ void adiosunstruct_write(struct adiosinfo *nfo, int tstep, float *xpts, float *y
 #       else
         adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, bufneeded);
 #       endif
-        adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, bufneeded);
         nfo->bufallocsize = bufneeded;
     }
     

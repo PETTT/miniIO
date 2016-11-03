@@ -78,7 +78,7 @@ void adiosamr_write(struct adiosamrinfo *nfo, int tstep, uint64_t cnpoints, floa
   free(npts_all);
 
   /* Set filename */
-  snprintf(fname, fnstrmax, "%s.%0*d.bp", nfo->name, timedigits, tstep);
+  snprintf(fname, fnstrmax, "%s.out.%0*d.bp", nfo->name, timedigits, tstep);
 
   /* Open & Write */
   ret = adios_open(&handle, nfo->name, fname, "w", nfo->comm);

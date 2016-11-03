@@ -260,7 +260,7 @@ int main(int argc, char **argv) {
       if(rank == 0) {
 	printf("      Writing VTK ...\n");   fflush(stdout);
       }
-      writevtk("amr", comm, rank, nprocs, tt, cubedata.npoints, cubedata.ncubes,
+      writevtk("amr.out", comm, rank, nprocs, tt, cubedata.npoints, cubedata.ncubes,
 	       cubedata.points, cubedata.data, "data", debug);
     }
 #endif

@@ -127,7 +127,7 @@ void adiosstruct_write(struct adiosstructinfo *nfo, int tstep) {
     }
 
     /* Set filename */
-    snprintf(fname, fnstrmax, "%s.%0*d.bp", nfo->name, timedigits, tstep);
+    snprintf(fname, fnstrmax, "%s.out.%0*d.bp", nfo->name, timedigits, tstep);
 
     /* Open & Write */
     ret = adios_open(&handle, nfo->name, fname, "w", nfo->comm);

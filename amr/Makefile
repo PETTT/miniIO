@@ -7,7 +7,7 @@ SRCS = amr.c cubes.c
 ### Add Output Modules Here ###
 
 # VTK Output Module
-ENABLE_VTKOUT = 0
+ENABLE_VTKOUT = 1
 ifeq ($(ENABLE_VTKOUT),1)
   OBJS += vtkout.o
   SRCS += vtkout.c
@@ -15,14 +15,13 @@ ifeq ($(ENABLE_VTKOUT),1)
 endif
 
 # ADIOS Common
-ENABLE_ADIOS = 0
+ENABLE_ADIOS = 1
 ifeq ($(ENABLE_ADIOS),1)
   ADIOS_HOME ?= $(HOME)/ace4/adios
-  MXML_HOME ?= $(HOME)/ace4/mxml
+  CFLAGS += -DHAS_ADIOS -I$(ADIOS_HOME)/include
+  LIBS += -L$(ADIOS_HOME)/lib -ladios -lmxml
   OBJS += adiosamr.o
   SRCS += adiosamr.c
-  CFLAGS += -DHAS_ADIOS -I$(ADIOS_HOME)/include
-  LIBS += -L$(ADIOS_HOME)/lib -ladios -L$(MXML_HOME)/lib -lmxml
 endif
 
 ### if HDF5_DIR set then enable HDF5 ###

@@ -37,9 +37,10 @@ void cubesfree(cubeInfo *nfo) {
   nfo->data = NULL;
 }
 
-void refine(cubeInfo *nfo, int t, int rpId, float thres, int level_start, float x_start, float y_start, float z_start, float dx_start, float dy_start, float dz_start, struct osn_context *osn, int maxLevel) {
-  double noisespacefreq = 10;    /* Spatial frequency of noise */
-  double noisetimefreq = 0.25;    /* Temporal frequency of noise */
+void refine(cubeInfo *nfo, int t, int rpId, float thres, int level_start, float x_start, float y_start, float z_start, float dx_start,
+	    float dy_start, float dz_start, struct osn_context *osn, int maxLevel, double noisespacefreq, double noisetimefreq) {
+  /* double noisespacefreq = 10;    /\* Spatial frequency of noise *\/ */
+  /* double noisetimefreq = 0.25;    /\* Temporal frequency of noise *\/ */
   float x_center, y_center, z_center, center_val;
   float xpts[8], ypts[8], zpts[8];
   float curdata[8];

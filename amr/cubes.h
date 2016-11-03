@@ -39,7 +39,8 @@ void cubesinit(cubeInfo *nfo, int task, int levels, int debug);
 void cubesfree(cubeInfo *nfo);
 
 void refine(cubeInfo *nfo, int t, int rpId, float thres, int level_start, float x_start, float y_start,
-	    float z_start, float dx_start, float dy_start, float dz_start, struct osn_context *osn, int maxLevel);
+	    float z_start, float dx_start, float dy_start, float dz_start, struct osn_context *osn, int maxLevel,
+	    double noisespacefreq, double noisetimefreq);
 
 void cubeprint(cubeInfo *nfo);
 

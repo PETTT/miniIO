@@ -15,3 +15,5 @@ mpirun -np 8 ./amr --tasks 2 2 2 --size 3 3 3 --levels 3 --tsteps 1 --vtkout
 # larger grid with VTK output
 mpirun -np 8 ./amr --tasks 2 2 2 --size 9 9 9 --levels 3 --tsteps 1 --vtkout
 
+# larger grid with ADIOS output
+mpirun -np 8 ./amr --tasks 2 2 2 --size 9 9 9 --levels 3 --tsteps 1 --adios MPI

@@ -86,18 +86,16 @@ int main(int argc, char **argv)
 
 #ifdef HAS_ADIOS
   char      *adios_groupname="struct";
-  char      *adios_method="MPI";
+  char      *adios_method=NULL;   /* POSIX|MPI|MPI_LUSTRE|MPI_AGGREGATE|PHDF5   */
   struct adiosstructinfo adiosstruct_nfo;
 #endif
 
   MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-    
 
   /* Parse command line */
   for(a = 1; a < argc; a++) {
-
 
     if(!strcasecmp(argv[a], "--tasks")) {
             inp = atoi(argv[++a]);
@@ -119,9 +117,18 @@ int main(int argc, char **argv)
       tstart = atoi(argv[++a]);
     }else if(!strcasecmp(argv[a], "--debug")) {
       debug = 1;
-    }else if(!strcasecmp(argv[a], "--debugIO")) {
+    }
+#ifdef HAS_ADIOS
+    else if(!strcasecmp(argv[a], "--adios")) {
+      adios_method = argv[++a];
+    }
+    else if(!strcasecmp(argv[a], "--debugIO")) {
       debugIO = 1; 
-    }else if(!strcasecmp(argv[a], "--hdf5")) {
+    }
+#endif
+  
+    else if(!strcasecmp(argv[a], "--hdf5"))
+    {
 #ifdef HAS_HDF5
       hdf5out = 1;
 #else
@@ -129,7 +136,8 @@ int main(int argc, char **argv)
       print_usage(rank, NULL);
       MPI_Abort(MPI_COMM_WORLD, 1); 
 #endif
-    } else {
+    }
+    else {
       if(rank == 0)   fprintf(stderr, "Option not recognized: %s\n\n", argv[a]);
       print_usage(rank, NULL);
       MPI_Abort(MPI_COMM_WORLD, 1);
@@ -162,6 +170,7 @@ int main(int argc, char **argv)
     print_usage(rank, "Error: number of timesteps not specified or incorrect");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
+
 
    /* Set up Cartesian communicator */
   cprocs[0] = inp;  cprocs[1] = jnp;  cprocs[2] = knp;
@@ -214,14 +223,16 @@ int main(int argc, char **argv)
   /* init ADIOS */
 #ifdef HAS_ADIOS
 
-  adiosstruct_init(&adiosstruct_nfo, adios_method, adios_groupname, comm, rank, nprocs, nt,
-		   ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, deltaz, FILLVALUE);
-  adiosstruct_addrealxvar(&adiosstruct_nfo, varnames[0], data);
+  if (adios_method) {
+    adiosstruct_init(&adiosstruct_nfo, adios_method, adios_groupname, comm, rank, nprocs, nt,
+		     ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, deltaz, FILLVALUE);
+    adiosstruct_addrealxvar(&adiosstruct_nfo, varnames[0], data);
 
-  if (debugIO) {
-    adiosstruct_addrealxvar(&adiosstruct_nfo, varnames[1], height);
-    adiosstruct_addintxvar(&adiosstruct_nfo, varnames[2], ola_mask);
-    adiosstruct_addintxvar(&adiosstruct_nfo, varnames[3], ol_mask);
+    if (debugIO) {
+      adiosstruct_addrealxvar(&adiosstruct_nfo, varnames[1], height);
+      adiosstruct_addintxvar(&adiosstruct_nfo, varnames[2], ola_mask);
+      adiosstruct_addintxvar(&adiosstruct_nfo, varnames[3], ol_mask);
+    }
   }
 #endif
 
@@ -352,10 +363,9 @@ int main(int argc, char **argv)
 
 
     timer_tick(&outtime, comm, 1);
-#ifdef HAS_ADIOS
-
-    adiosstruct_write(&adiosstruct_nfo, tt);
     
+#ifdef HAS_ADIOS
+    if (adios_method) adiosstruct_write(&adiosstruct_nfo, tt);
 #endif
  
 #ifdef HAS_HDF5
@@ -380,7 +390,7 @@ int main(int argc, char **argv)
 
     /* finalize ADIOS */
 #ifdef HAS_ADIOS
-    adiosstruct_finalize(&adiosstruct_nfo);
+    if (adios_method) adiosstruct_finalize(&adiosstruct_nfo);
 #endif
 
   open_simplex_noise_free(simpnoise);
@@ -412,8 +422,7 @@ void print_usage(int rank, const char *errstr)
 	  "      NI, NJ, NK : Number of grid points along the I,J,K axes respectively\n"
 	  "      valid values are > 1\n\n" 
 	  "  Optional:\n"
-	  "    --debug: Turns on debugging print statements \n"
-	  "    --debugIO: Turns on debugging IO (corrently only works with ADIOS IO) \n"
+	  "    --debug : Turns on debugging print statements \n"
 	  "    --maskthreshold MT : Mask theshold; valid values are floats between -1.0 and 1.0 \n"
 	  "      MT : mask threshold value; Default: 0.0\n"
 	  "    --noisespacefreq FNS : Spatial frequency of noise function\n"
@@ -422,6 +431,13 @@ void print_usage(int rank, const char *errstr)
 	  "      FNT : time frequency value;  Default: 0.25\n"
 	  "    --tsteps NT : Number of time steps; valid values are > 0 (Default value 10)\n"
 	  "    --tstart TS : Starting time step; valid values are >= 0  (Default value 0)\n"
+
+#ifdef HAS_ADIOS
+	  "    --adios [POSIX|MPI|MPI_LUSTRE|MPI_AGGREGATE|PHDF5]: Enable ADIOS output\n"
+	  "    --debugIO : Turns on debugging IO (corrently only works with ADIOS IO) \n"
+#endif
+
+	  
 #ifdef HAS_HDF5
 	  "    --hdf5 : Enable HDF5 output (i.e. XDMF)\n"
 #endif

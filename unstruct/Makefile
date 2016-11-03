@@ -14,11 +14,11 @@ CFLAGS += -DHAS_PRZM
 # ADIOS Output Module
 ENABLE_ADIOS = 1
 ifeq ($(ENABLE_ADIOS),1)
-	ADIOS_HOME ?= $(HOME)/ace4/adios
-	CFLAGS += -DHAS_ADIOS -I$(ADIOS_HOME)/include
-	LIBS += -L$(ADIOS_HOME)/lib -ladios -lmxml
-	OBJS += adiosunstruct.o
-	SRCS += adiosunstruct.c
+  ADIOS_HOME ?= $(HOME)/ace4/adios
+  CFLAGS += -DHAS_ADIOS -I$(ADIOS_HOME)/include
+  LIBS += -L$(ADIOS_HOME)/lib -ladios -lmxml
+  OBJS += adiosunstruct.o
+  SRCS += adiosunstruct.c
 endif
 
 # if HDF5_DIR is set then enable HDF5 Output Module ###

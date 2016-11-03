@@ -32,6 +32,8 @@ int main(int argc, char **argv) {
   int i, j, k, a, block_id, t;  /* loop indices */
   int tt;                        /* Actual time step from tstart */
   float x, y, z;
+  double noisespacefreq = 10.0; /* Spatial frequency of noise */
+  double noisetimefreq = 0.25;  /* Temporal frequency of noise */
   int tstart = 0;
   int nt = 50;                   /* Number of time steps */
   float deltax, deltay, deltaz;
@@ -61,7 +63,7 @@ int main(int argc, char **argv) {
   
 #ifdef HAS_ADIOS
   char      *adios_groupname="amr";
-  char      *adios_method="MPI";
+  char      *adios_method=NULL;   /* POSIX|MPI|MPI_LUSTRE|MPI_AGGREGATE|PHDF5   */
   struct adiosamrinfo adiosamr_nfo;
 #endif
 #ifdef HAS_HDF5
@@ -88,13 +90,25 @@ int main(int argc, char **argv) {
       threshold = strtof(argv[++a], NULL);
     } else if(!strcasecmp(argv[a], "--levels")) {
       maxLevel = atoi(argv[++a]);
+    } else if(!strcasecmp(argv[a], "--noisespacefreq")) {
+      noisespacefreq = strtod(argv[++a], NULL);
+    } else if(!strcasecmp(argv[a], "--noisetimefreq")) {
+      noisetimefreq = strtod(argv[++a], NULL);
     } else if(!strcasecmp(argv[a], "--tsteps")) {
       nt = atoi(argv[++a]);
     } else if(!strcasecmp(argv[a], "--tstart")) {
       tstart = atoi(argv[++a]);
     }else if(!strcasecmp(argv[a], "--debug")) {
       debug = 1;
-    }else if(!strcasecmp(argv[a], "--hdf5")) {
+    }
+
+#ifdef HAS_ADIOS
+    else if(!strcasecmp(argv[a], "--adios")) {
+      adios_method = argv[++a];
+    }
+#endif
+
+    else if(!strcasecmp(argv[a], "--hdf5")) {
 #ifdef HAS_HDF5
       hdf5out = 1;
 #else
@@ -181,8 +195,10 @@ int main(int argc, char **argv) {
   
   /* init ADIOS */
 #ifdef HAS_ADIOS
-  adiosamr_init(&adiosamr_nfo, adios_method, adios_groupname, comm, rank, nprocs, nt);
-  adiosamr_addxvar(&adiosamr_nfo, "data");
+  if (adios_method) {
+    adiosamr_init(&adiosamr_nfo, adios_method, adios_groupname, comm, rank, nprocs, nt);
+    adiosamr_addxvar(&adiosamr_nfo, "data");
+  }
 #endif
 
 #ifdef HAS_HDF5
@@ -222,7 +238,7 @@ int main(int argc, char **argv) {
 	  if (debug) {
 	    printf("Start from main Block_id=%d\n", block_id+1);
 	  }
-	  refine(&cubedata, tt, (block_id+1), threshold, 0, x, y, z, deltax, deltay, deltaz, simpnoise, maxLevel);
+	  refine(&cubedata, tt, (block_id+1), threshold, 0, x, y, z, deltax, deltay, deltaz, simpnoise, maxLevel, noisespacefreq, noisetimefreq);
 	
 	  x += deltax;
 	}
@@ -252,10 +268,12 @@ int main(int argc, char **argv) {
     timer_tick(&outtime, comm, 1);
     
 #ifdef HAS_ADIOS
+    if (adios_method) {
       if(rank == 0) {
 	printf("      Writing ADIOS ...\n");   fflush(stdout);
       }
-    adiosamr_write(&adiosamr_nfo, tt, cubedata.npoints, cubedata.points, &cubedata.data);
+      adiosamr_write(&adiosamr_nfo, tt, cubedata.npoints, cubedata.points, &cubedata.data);
+    }
 #endif
 
 #ifdef HAS_HDF5
@@ -279,7 +297,7 @@ int main(int argc, char **argv) {
   
   /* finalize ADIOS */
 #ifdef HAS_ADIOS
-  adiosamr_finalize(&adiosamr_nfo);
+  if (adios_method) adiosamr_finalize(&adiosamr_nfo);
 #endif
 
 #ifdef HAS_HDF5
@@ -319,8 +337,16 @@ void print_usage(int rank, const char *errstr)
 	  "      T : threshold value; Default: 0.0\n"
 	  "    --levels L : Maximum levels of refinement; valid values are >= 0 \n"
 	  "      L : max refinmentment levels value; Default: 8\n"
+	  "    --noisespacefreq FNS : Spatial frequency of noise function\n"
+	  "      FNS : space frequency value; Default: 10.0\n"
+	  "    --noisetimefreq FNT : Temporal frequency of noise function\n"
+	  "      FNT : time frequency value;  Default: 0.25\n"
 	  "    --tsteps NT : Number of time steps; valid values are > 0;  Default:  50)\n"
 	  "    --tstart TS : Starting time step; valid values are > 0;  Default: 0\n"
+
+#ifdef HAS_ADIOS
+	  "    --adios [POSIX|MPI|MPI_LUSTRE|MPI_AGGREGATE|PHDF5]: Enable ADIOS output\n"
+#endif
 	  );
 
 #ifdef HAS_VTKOUT

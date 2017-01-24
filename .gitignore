@@ -1,5 +1,6 @@
 # Vagrant stuff
 .vagrant
+html
 
 # Mac & windows stuff
 .DS_Store

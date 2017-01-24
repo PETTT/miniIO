@@ -14,8 +14,6 @@ Vagrant.configure(2) do |config|
   # boxes at https://atlas.hashicorp.com/search.
   config.vm.box = "boxcutter/ubuntu1604-desktop"
 
-
-
   config.ssh.forward_x11 = "true"
 
   config.vm.provider "virtualbox" do |v|

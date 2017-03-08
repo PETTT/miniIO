@@ -5,7 +5,7 @@ OBJS = struct.o
 SRCS = struct.c
 
 # ADIOS Common
-ENABLE_ADIOS = 1
+#ENABLE_ADIOS = 1
 ifeq ($(ENABLE_ADIOS),1)
   ADIOS_HOME ?= $(HOME)/ace4/adios
   CFLAGS += -DHAS_ADIOS -I$(ADIOS_HOME)/include

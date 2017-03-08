@@ -82,6 +82,7 @@ int main(int argc, char **argv)
 
 #ifdef HAS_HDF5
   int hdf5out = 0;
+  hsize_t *hdf5_chunk=NULL;
 #endif
 
 #ifdef HAS_ADIOS
@@ -123,26 +124,35 @@ int main(int argc, char **argv)
       adios_method = argv[++a];
     }
     else if(!strcasecmp(argv[a], "--debugIO")) {
-      debugIO = 1; 
+      debugIO = 1;
     }
 #endif
-  
-    else if(!strcasecmp(argv[a], "--hdf5"))
-    {
+    else if( !strcasecmp(argv[a], "--hdf5") )
+      {
 #ifdef HAS_HDF5
-      hdf5out = 1;
+	hdf5out = 1;
+      }
+    else if(!strcasecmp(argv[a], "--hdf5_chunk")) {
+      hdf5_chunk = malloc(2 * sizeof(hsize_t));
+      hdf5_chunk[1] = (hsize_t)strtoul(argv[++a], NULL, 0);
+      hdf5_chunk[0] = (hsize_t)strtoul(argv[++a], NULL, 0);
+      if (hdf5_chunk[0] <= 0 || hdf5_chunk[1] <= 0 ) {
+	print_usage(rank, "Error: Illegal chunk dim sizes");
+	MPI_Abort(MPI_COMM_WORLD, 1);
+      }
+    }
 #else
       if(rank == 0)   fprintf(stderr, "HDF5 option not available: %s\n\n", argv[a]);
       print_usage(rank, NULL);
-      MPI_Abort(MPI_COMM_WORLD, 1); 
-#endif
+      MPI_Abort(MPI_COMM_WORLD, 1);
     }
+#endif
     else {
       if(rank == 0)   fprintf(stderr, "Option not recognized: %s\n\n", argv[a]);
       print_usage(rank, NULL);
       MPI_Abort(MPI_COMM_WORLD, 1);
     }
-  }
+   }
 
   numPoints = ni*nj*nk;
   npoints  = numPoints;
@@ -377,7 +387,7 @@ int main(int argc, char **argv)
 		is, js, ks,
 		ni, nj, nk, cni, cnj, cnk,  
 		deltax, deltay, deltaz,
-		data, height, ola_mask, ol_mask);
+		data, height, ola_mask, ol_mask, hdf5_chunk);
     }
 #endif
 
@@ -390,7 +400,12 @@ int main(int argc, char **argv)
 
     /* finalize ADIOS */
 #ifdef HAS_ADIOS
-    if (adios_method) adiosstruct_finalize(&adiosstruct_nfo);
+  if (adios_method) adiosstruct_finalize(&adiosstruct_nfo);
+#endif
+
+#ifdef HAS_HDF5
+  if(hdf5_chunk)
+    free(hdf5_chunk);
 #endif
 
   open_simplex_noise_free(simpnoise);
@@ -440,6 +455,8 @@ void print_usage(int rank, const char *errstr)
 	  
 #ifdef HAS_HDF5
 	  "    --hdf5 : Enable HDF5 output (i.e. XDMF)\n"
+	  "    --hdf5_chunk CI : Chunk Size CI \n"
+		  "      valid values are CI <= NI, CJ <= NJ, CK <= NK\n"
 #endif
 	  );
 }

@@ -24,7 +24,7 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 	       int is, int js, int ks,
                int ni, int nj, int nk, int cni, int cnj, int cnk, 
                float deltax, float deltay, float deltaz, 
-               float *data, float *height, int *ola_mask, int *ol_mask)
+               float *data, float *height, int *ola_mask, int *ol_mask, hsize_t *h5_chunk)
 {
     char fname[fnstrmax+1];
     char fname_xdmf[fnstrmax+1];
@@ -37,12 +37,22 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     hid_t filespace;
     hid_t did;
     hsize_t start[3], count[3];
-    hsize_t dims[3];
+    hsize_t *block=NULL;
+    hsize_t dimsf[3];
+    hsize_t dimsm[3];
     int j;
     herr_t err;
+    hid_t chunk_pid;
     
     snprintf(fname, fnstrmax, "struct_t%0*d.h5", timedigits, tstep);
     snprintf(fname_xdmf, fnstrmax, "struct_t%0*d.xmf", timedigits, tstep);
+
+    dimsf[0] = nk;
+    dimsf[1] = nj;
+    dimsf[2] = ni;
+    dimsm[0] = cnk;
+    dimsm[1] = cnj;
+    dimsm[2] = cni;
 
     if(rank == 0) {
 
@@ -51,19 +61,23 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 	MPI_Abort(comm, 1);
       }
 
-      dims[0] = nk;
-      dims[1] = nj;
-      dims[2] = ni;
-      filespace = H5Screate_simple(3, dims, NULL);
+      filespace = H5Screate_simple(3, dimsf, NULL);
+
+      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
+      if(h5_chunk) {
+	H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	h5_chunk[2]=dimsm[2];
+	H5Pset_chunk(chunk_pid, 3, h5_chunk);
+      }
 
       /* Create the dataset with default properties */
       
       for (j=0; j<num_varnames; j++) {
 
 	if(strcmp(varnames[j],"data") == 0 || strcmp(varnames[j],"height") == 0) {
-	  did = H5Dcreate(file_id, varnames[j], H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+	  did = H5Dcreate(file_id, varnames[j], H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
 	} else {
-	  did = H5Dcreate(file_id, varnames[j], H5T_NATIVE_INT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+	  did = H5Dcreate(file_id, varnames[j], H5T_NATIVE_INT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
 	}
 
 	H5Dclose(did);
@@ -71,7 +85,10 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 
       /* Close filespace. */
       H5Sclose(filespace);
-      
+      if(h5_chunk) {
+	/* Close . */
+	H5Pclose(chunk_pid);
+      }
       /* Close the file */
       H5Fclose(file_id);
     }
@@ -103,16 +120,29 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     if(H5Pclose(plist_id) < 0) {
       printf("writehdf5p error: Could not close property list \n");
       MPI_Abort(comm, 1);
+    }    
+    if(h5_chunk) {
+      block = malloc(3 * sizeof(hsize_t));
+      count[0] = 1;
+      count[1] = dimsm[1];
+      count[2] = dimsm[2];
+      start[0] = (hsize_t)(ks);
+      start[1] = (hsize_t)(js);
+      start[2] = (hsize_t)(is);
+      block[0] = dimsm[0];
+      block[1] = 1;
+      block[2] = 1;
+    } else {
+      start[0] = (hsize_t)(ks);
+      start[1] = (hsize_t)(js);
+      start[2] = (hsize_t)(is);
+      count[0] = (hsize_t)(cnk);
+      count[1] = (hsize_t)(cnj);
+      count[2] = (hsize_t)(cni);
+      printf("start %d %d %d %d \n",rank,start[0],start[1],start[2]);
     }
 
-    start[0] = (hsize_t)(ks);
-    start[1] = (hsize_t)(js);
-    start[2] = (hsize_t)(is);
-    count[0] = (hsize_t)(cnk);
-    count[1] = (hsize_t)(cnj);
-    count[2] = (hsize_t)(cni);
-
-    memspace = H5Screate_simple(3, count, NULL);
+    memspace = H5Screate_simple(3, dimsm, NULL);
 
     /* Create property list for collective dataset write. */
     plist_id = H5Pcreate(H5P_DATASET_XFER);
@@ -129,7 +159,7 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 
       /* Select hyperslab in the file.*/
       filespace = H5Dget_space(did);
-      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL );
+      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, block);
       
       err = 0;
       if(strcmp(varnames[j],"data") == 0) {
@@ -158,7 +188,11 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 
     if(H5Pclose(plist_id) < 0)
       printf("writehdf5 error: Could not close property list \n");
-      
+
+    if(h5_chunk) {
+      free(block);
+    }
+
     if(H5Fclose(file_id) != 0)
       printf("writehdf5 error: Could not close HDF5 file \n");
 

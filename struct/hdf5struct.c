@@ -24,7 +24,7 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 	       int is, int js, int ks,
                int ni, int nj, int nk, int cni, int cnj, int cnk, 
                float deltax, float deltay, float deltaz, 
-               float *data, float *height, int *ola_mask, int *ol_mask, hsize_t *h5_chunk)
+               float *data, float *height, int *ola_mask, int *ol_mask, hsize_t *h5_chunk, int hdf5_compress)
 {
     char fname[fnstrmax+1];
     char fname_xdmf[fnstrmax+1];
@@ -68,6 +68,18 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 	H5Pset_layout(chunk_pid, H5D_CHUNKED);
 	h5_chunk[2]=dimsm[2];
 	H5Pset_chunk(chunk_pid, 3, h5_chunk);
+      }
+
+      if(hdf5_compress == 1) {
+
+	/* Set ZLIB / DEFLATE Compression using compression level 6. */
+	H5Pset_deflate (chunk_pid, 6);
+
+	/* Uncomment these lines to set SZIP Compression
+	   szip_options_mask = H5_SZIP_NN_OPTION_MASK;
+	   szip_pixels_per_block = 16;
+	   status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
+	*/
       }
 
       /* Create the dataset with default properties */

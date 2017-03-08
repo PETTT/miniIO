@@ -83,6 +83,7 @@ int main(int argc, char **argv)
 #ifdef HAS_HDF5
   int hdf5out = 0;
   hsize_t *hdf5_chunk=NULL;
+  int hdf5_compress = 0;
 #endif
 
 #ifdef HAS_ADIOS
@@ -140,6 +141,9 @@ int main(int argc, char **argv)
 	print_usage(rank, "Error: Illegal chunk dim sizes");
 	MPI_Abort(MPI_COMM_WORLD, 1);
       }
+    }
+    else if(!strcasecmp(argv[a], "--hdf5_compress")) {
+      hdf5_compress=1;
     }
 #else
       if(rank == 0)   fprintf(stderr, "HDF5 option not available: %s\n\n", argv[a]);
@@ -387,7 +391,7 @@ int main(int argc, char **argv)
 		is, js, ks,
 		ni, nj, nk, cni, cnj, cnk,  
 		deltax, deltay, deltaz,
-		data, height, ola_mask, ol_mask, hdf5_chunk);
+		data, height, ola_mask, ol_mask, hdf5_chunk, hdf5_compress);
     }
 #endif
 
@@ -457,6 +461,7 @@ void print_usage(int rank, const char *errstr)
 	  "    --hdf5 : Enable HDF5 output (i.e. XDMF)\n"
 	  "    --hdf5_chunk CI : Chunk Size CI \n"
 		  "      valid values are CI <= NI, CJ <= NJ, CK <= NK\n"
+	  "    --hdf5_compress : enable compression \n"
 #endif
 	  );
 }

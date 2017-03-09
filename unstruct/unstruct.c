@@ -19,6 +19,10 @@
 #  include "adiosunstruct.h"
 #endif
 
+#ifdef HAS_HDF5
+#  include "hdf5.h"
+#endif
+
 /*## End of Output Module Includes ##*/
 
 void print_usage(int rank, const char *errstr)
@@ -56,6 +60,8 @@ void print_usage(int rank, const char *errstr)
 #endif
 #ifdef HAS_HDF5
     fprintf(stderr, "   --hdf5 : Enable HDF5 output.\n");
+    fprintf(stderr, "   --hdf5_chunk npts x y \n"
+                    "      valid values are chunk size x and y is nelems2/x nelms3/y, must be divisible\n");
 #endif
     /*## End of Output Module Usage Strings ##*/
 }
@@ -183,6 +189,7 @@ int main(int argc, char **argv)
 
 #ifdef HAS_HDF5
     int hdf5out = 0;
+    hsize_t *hdf5_chunk=NULL;
 #endif
 
     /*## End of Output Module Variables ##*/
@@ -231,6 +238,12 @@ int main(int argc, char **argv)
 #ifdef HAS_HDF5
         else if(!strcasecmp(argv[a], "--hdf5")) {
             hdf5out = 1;
+        }
+        else if(!strcasecmp(argv[a], "--hdf5_chunk")) {
+	  hdf5_chunk = malloc(3 * sizeof(hsize_t));
+	  hdf5_chunk[0] = (hsize_t)strtoul(argv[++a], NULL, 0);
+	  hdf5_chunk[1] = (hsize_t)strtoul(argv[++a], NULL, 0);
+	  hdf5_chunk[2] = (hsize_t)strtoul(argv[++a], NULL, 0);
         }
 #endif
 
@@ -418,7 +431,7 @@ int main(int argc, char **argv)
                 printf("   Writing hdf5...\n");   fflush(stdout);
             }
             writehdf5("unstruct", MPI_COMM_WORLD, t, npoints, nptstask, xpts, ypts, zpts,
-                      nelems3, conns3, nelems2, conns2, "noise", data);
+                      nelems3, conns3, nelems2, conns2, "noise", data, hdf5_chunk);
 
 	    
         }

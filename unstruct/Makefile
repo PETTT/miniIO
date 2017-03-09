@@ -12,7 +12,7 @@ SRCS += przm.c
 CFLAGS += -DHAS_PRZM
 
 # ADIOS Output Module
-ENABLE_ADIOS = 1
+ENABLE_ADIOS = 0
 ifeq ($(ENABLE_ADIOS),1)
   ADIOS_HOME ?= $(HOME)/ace4/adios
   CFLAGS += -DHAS_ADIOS -I$(ADIOS_HOME)/include

@@ -20,7 +20,7 @@ write_xdmf_xml_value(char *fname, char *fname_xdmf, char *varname, float deltax,
 
 void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs, 
                int tstep, int ni, int nj, int nk, int is, int ie, int js, int je,
-		int ks, int ke, float deltax, float deltay, float deltaz, int nci, int ncj, int nck, float *data, hsize_t *h5_chunk)
+		int ks, int ke, float deltax, float deltay, float deltaz, int nci, int ncj, int nck, float *data, hsize_t *h5_chunk, int hdf5_compress)
 {
     char fname[fnstrmax+1];
     char fname_xdmf[fnstrmax+1];
@@ -61,6 +61,18 @@ void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
       if(h5_chunk) {
 	H5Pset_layout(chunk_pid, H5D_CHUNKED);
 	H5Pset_chunk(chunk_pid, 3, h5_chunk);
+      }
+
+      if(hdf5_compress == 1) {
+
+	/* Set ZLIB / DEFLATE Compression using compression level 6. */
+	H5Pset_deflate (chunk_pid, 6);
+
+	/* Uncomment these lines to set SZIP Compression
+	   szip_options_mask = H5_SZIP_NN_OPTION_MASK;
+	   szip_pixels_per_block = 16;
+	   status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
+	*/
       }
 
       /* Create the dataset with default properties and close filespace. */

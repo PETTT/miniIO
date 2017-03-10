@@ -459,8 +459,8 @@ void print_usage(int rank, const char *errstr)
 	  
 #ifdef HAS_HDF5
 	  "    --hdf5 : Enable HDF5 output (i.e. XDMF)\n"
-	  "    --hdf5_chunk CI : Chunk Size CI \n"
-		  "      valid values are CI <= NI, CJ <= NJ, CK <= NK\n"
+	  "    --hdf5_chunk CI : Chunk Size CI CJ \n"
+		  "      valid values are CI <= NI, CJ <= NJ\n"
 	  "    --hdf5_compress : enable compression \n"
 #endif
 	  );

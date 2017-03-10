@@ -4,19 +4,6 @@ CC ?= mpicc
 CXX ?= mpicxx
 FC ?= mpif90
 
-### if ADIOS_HOME is set then enable ADIOS ###
-ifdef ADIOS_HOME
-  CFLAGS += -DHAS_ADIOS -I$(ADIOS_HOME)/include
-  LIBS += -L$(ADIOS_HOME)/lib -ladios -lmxml
-endif
-
-### if HDF5_DIR is set then enable HDF5 ###
-ifdef HDF5_DIR
-  LIBS += $(HDF5_DIR)/lib/libhdf5.a -lz -ldl
-  INCLUDE += -I$(HDF5_DIR)/include
-  CFLAGS += -DHAS_HDF5
-endif
-
 # Optimization and debugging flags, (un)comment as desired
 OPT = -O3
 DBG = -g
@@ -54,5 +41,16 @@ $(OSNOBJ): ../osn/open-simplex-noise.h ../osn/open-simplex-noise.c
 # (a gnu make-ism, so be careful with weird makes)
 .DEFAULT_GOAL :=
 
+### if ADIOS_HOME is set then enable ADIOS ###
+ifdef ADIOS_HOME
+  CFLAGS += -DHAS_ADIOS -I$(ADIOS_HOME)/include
+  LIBS += -L$(ADIOS_HOME)/lib -ladios -lmxml
+endif
 
+### if HDF5_DIR is set then enable HDF5 ###
+ifdef HDF5_DIR
+  LIBS += $(HDF5_DIR)/lib/libhdf5.a -lz -ldl
+  INCLUDE += -I$(HDF5_DIR)/include
+  CFLAGS += -DHAS_HDF5
+endif
 

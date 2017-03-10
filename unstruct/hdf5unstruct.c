@@ -6,17 +6,12 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
-#include <hdf5.h>
 
 #include <pdirs.h>
-
+#include "hdf5unstruct.h"
 
 uint64_t nelems_in[2];
 uint64_t nelems_out[2];
-
-void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t nptstask,
-               float *xpts, float *ypts, float *zpts, uint64_t nelems3, uint64_t *conns3,
-               uint64_t nelems2, uint64_t *conns2, char *varname, float *data, hsize_t *h5_chunk, int hdf5_compress);
 
 void
 write_xdmf_xml(char *fname, char *fname_xdmf, uint64_t npoints);

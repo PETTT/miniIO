@@ -20,7 +20,7 @@
 #endif
 
 #ifdef HAS_HDF5
-#  include "hdf5.h"
+#  include "hdf5unstruct.h"
 #endif
 
 /*## End of Output Module Includes ##*/

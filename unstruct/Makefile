@@ -18,8 +18,8 @@ ifdef ADIOS_HOME
 endif
 
 ifdef HDF5_DIR
-  OBJS += hdf5.o
-  SRCS += hdf5.c
+  OBJS += hdf5unstruct.o
+  SRCS += hdf5unstruct.c
 endif
 
 ### End of Output Modules ###
@@ -45,5 +45,5 @@ depend:
 unstruct.o: ../osn/open-simplex-noise.h przm.h adiosunstruct.h
 przm.o: ../pdirs.h przm.h
 adiosunstruct.o: adiosunstruct.h
-hdf5.o: ../pdirs.h
+hdf5unstruct.o: ../pdirs.h
 

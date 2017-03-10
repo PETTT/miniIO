@@ -59,9 +59,11 @@ void print_usage(int rank, const char *errstr)
     fprintf(stderr, "   --przm : Enable PRZM output.\n");
 #endif
 #ifdef HAS_HDF5
-    fprintf(stderr, "   --hdf5 : Enable HDF5 output.\n");
-    fprintf(stderr, "   --hdf5_chunk npts x y \n"
-                    "      valid values are chunk size x and y is nelems2/x nelms3/y, must be divisible\n");
+    fprintf(stderr, "   --hdf5 : Enable HDF5 output.\n"
+                    "   --hdf5_chunk npts x y \n"
+                    "      valid values of chunk size x and y are nelems2/x nelms3/y, must be divisible\n"
+	            "   --hdf5_compress : enable compression \n"
+	    );
 #endif
     /*## End of Output Module Usage Strings ##*/
 }
@@ -190,6 +192,7 @@ int main(int argc, char **argv)
 #ifdef HAS_HDF5
     int hdf5out = 0;
     hsize_t *hdf5_chunk=NULL;
+    int hdf5_compress = 0;
 #endif
 
     /*## End of Output Module Variables ##*/
@@ -245,6 +248,9 @@ int main(int argc, char **argv)
 	  hdf5_chunk[1] = (hsize_t)strtoul(argv[++a], NULL, 0);
 	  hdf5_chunk[2] = (hsize_t)strtoul(argv[++a], NULL, 0);
         }
+	else if(!strcasecmp(argv[a], "--hdf5_compress")) {
+	  hdf5_compress=1;
+	}
 #endif
 
         /*## End of Output Module Command Line Arguments ##*/
@@ -431,7 +437,7 @@ int main(int argc, char **argv)
                 printf("   Writing hdf5...\n");   fflush(stdout);
             }
             writehdf5("unstruct", MPI_COMM_WORLD, t, npoints, nptstask, xpts, ypts, zpts,
-                      nelems3, conns3, nelems2, conns2, "noise", data, hdf5_chunk);
+                      nelems3, conns3, nelems2, conns2, "noise", data, hdf5_chunk, hdf5_compress);
 
 	    
         }

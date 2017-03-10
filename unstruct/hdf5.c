@@ -16,7 +16,7 @@ uint64_t nelems_out[2];
 
 void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t nptstask,
                float *xpts, float *ypts, float *zpts, uint64_t nelems3, uint64_t *conns3,
-               uint64_t nelems2, uint64_t *conns2, char *varname, float *data, hsize_t *h5_chunk);
+               uint64_t nelems2, uint64_t *conns2, char *varname, float *data, hsize_t *h5_chunk, int hdf5_compress);
 
 void
 write_xdmf_xml(char *fname, char *fname_xdmf, uint64_t npoints);
@@ -25,7 +25,7 @@ static const int fnstrmax = 4095;
 
 void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t nptstask, 
                float *xpts, float *ypts, float *zpts, uint64_t nelems3, uint64_t *conns3,
-               uint64_t nelems2, uint64_t *conns2, char *varname, float *data, hsize_t *h5_chunk)
+               uint64_t nelems2, uint64_t *conns2, char *varname, float *data, hsize_t *h5_chunk, int hdf5_compress)
 {
     char dirname[fnstrmax+1];
     char fname[fnstrmax+1];
@@ -103,6 +103,19 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	chunk = h5_chunk[0];
 	H5Pset_chunk(chunk_pid, 1, &chunk);
       } 
+
+      if(hdf5_compress == 1) {
+
+	/* Set ZLIB / DEFLATE Compression using compression level 6. */
+	H5Pset_deflate (chunk_pid, 6);
+
+	/* Uncomment these lines to set SZIP Compression
+	   szip_options_mask = H5_SZIP_NN_OPTION_MASK;
+	   szip_pixels_per_block = 16;
+	   status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
+	*/
+      }
+
       /* Create Grid Group */
       group_id = H5Gcreate(file_id, "grid points", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 

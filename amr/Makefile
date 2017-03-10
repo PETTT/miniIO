@@ -14,23 +14,14 @@ ifeq ($(ENABLE_VTKOUT),1)
   CFLAGS += -DHAS_VTKOUT
 endif
 
-# ADIOS Common
-ENABLE_ADIOS = 1
-ifeq ($(ENABLE_ADIOS),1)
-  ADIOS_HOME ?= $(HOME)/ace4/adios
-  CFLAGS += -DHAS_ADIOS -I$(ADIOS_HOME)/include
-  LIBS += -L$(ADIOS_HOME)/lib -ladios -lmxml
+ifdef ADIOS_HOME
   OBJS += adiosamr.o
   SRCS += adiosamr.c
 endif
 
-### if HDF5_DIR set then enable HDF5 ###
 ifdef HDF5_DIR
-  LIBS += $(HDF5_DIR)/lib/libhdf5.a -lz -ldl
-  INCLUDE += -I$(HDF5_DIR)/include
   OBJS += hdf5amr.o
   SRCS += hdf5amr.c
-  CFLAGS += -DHAS_HDF5
 endif
 
 ### End of Output Modules ###

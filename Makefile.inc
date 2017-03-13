@@ -1,8 +1,16 @@
 
 # MPI Compiler wrappers preferred; just compilers otherwise
-CC ?= mpicc
-CXX ?= mpicxx
-FC ?= mpif90
+
+HOSTNAME := $(shell hostname -d)
+
+ifeq ($(findstring .mil,$(HOSTNAME)),.mil)
+  CC = cc
+  FC = ftn
+else
+  CC ?= mpicc
+  CXX ?= mpicxx
+  FC ?= mpif90
+endif
 
 # Optimization and debugging flags, (un)comment as desired
 OPT = -O3

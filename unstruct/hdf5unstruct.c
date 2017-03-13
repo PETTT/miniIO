@@ -92,7 +92,6 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       dims[0] = (hsize_t)npoints;
       filespace = H5Screate_simple(1, dims, NULL);
 
-
       /* 
        * Each process defines dataset in memory and writes it to the hyperslab
        * in the file.
@@ -138,8 +137,6 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       did[2] = H5Dcreate(group_id, "z", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
       H5Sclose(filespace);
 
-
-      
       /* Select hyperslab in the file.*/
       filespace = H5Dget_space(did[0]);
       H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, pblock );
@@ -291,17 +288,6 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       dims[0] = (hsize_t)npoints;
       filespace = H5Screate_simple(1, dims, NULL);
 
-      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
-      if(h5_chunk) {
-	H5Pset_layout(chunk_pid, H5D_CHUNKED);
-	chunk = dims[0];
-	H5Pset_chunk(chunk_pid, 1, &chunk);
-      }
-
-      /* Create the dataset with default properties and close filespace. */
-      did[0] = H5Dcreate(file_id, "vars", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
-      H5Sclose(filespace);
-
       /* 
        * Each process defines dataset in memory and writes it to the hyperslab
        * in the file.
@@ -312,6 +298,22 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	block = 1;
 	pblock = &block;
       }
+
+      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
+      if(h5_chunk) {
+	H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	if(count[0]%h5_chunk[0] == 0) {
+	  chunk = count[0]/h5_chunk[0];
+	} else {
+	  printf("writehdf5 error: nptstask not evenly divisible by chunk size [1] \n");
+	  MPI_Abort(comm, 1);
+	}
+	H5Pset_chunk(chunk_pid, 1, &chunk);
+      }
+
+      /* Create the dataset with default properties and close filespace. */
+      did[0] = H5Dcreate(file_id, "vars", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
+      H5Sclose(filespace);
       
       memspace = H5Screate_simple(1, count, NULL);
       

@@ -162,6 +162,9 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
     nelems_in[1] = nelems2 ;
 
     MPI_Allreduce( nelems_in, nelems_out, 2, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD );
+
+    if(rank==0)
+      printf("   Total nelems [0],[1] = %llu %llu \n", nelems_out[0], nelems_out[1]);
    
     //MSB is it possible that some processors have 0?
 

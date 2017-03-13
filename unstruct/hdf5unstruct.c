@@ -92,10 +92,28 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       dims[0] = (hsize_t)npoints;
       filespace = H5Screate_simple(1, dims, NULL);
 
+
+      /* 
+       * Each process defines dataset in memory and writes it to the hyperslab
+       * in the file.
+       */    
+      start[0] =(hsize_t)(nptstask*rank);
+      count[0] =(hsize_t)nptstask;
+      if(h5_chunk) {
+	block = 1;
+	pblock = &block;
+      }
+      memspace = H5Screate_simple(1, count, NULL);
+
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
       if(h5_chunk) {
 	H5Pset_layout(chunk_pid, H5D_CHUNKED);
-	chunk = h5_chunk[0];
+	if(count[0]%h5_chunk[0] == 0) {
+	  chunk = count[0]/h5_chunk[0];
+	} else {
+	  printf("writehdf5 error: nptstask not evenly divisible by chunk size [1] \n");
+	  MPI_Abort(comm, 1);
+	}
 	H5Pset_chunk(chunk_pid, 1, &chunk);
       } 
 
@@ -120,17 +138,7 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       did[2] = H5Dcreate(group_id, "z", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
       H5Sclose(filespace);
 
-      /* 
-       * Each process defines dataset in memory and writes it to the hyperslab
-       * in the file.
-       */    
-      start[0] =(hsize_t)(nptstask*rank);
-      count[0] =(hsize_t)nptstask;
-      if(h5_chunk) {
-	block = 1;
-	pblock = &block;
-      }
-      memspace = H5Screate_simple(1, count, NULL);
+
       
       /* Select hyperslab in the file.*/
       filespace = H5Dget_space(did[0]);
@@ -163,10 +171,7 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 
     MPI_Allreduce( nelems_in, nelems_out, 2, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD );
 
-    if(rank==0)
-      printf("   Total nelems [0],[1] = %llu %llu \n", nelems_out[0], nelems_out[1]);
-   
-    //MSB is it possible that some processors have 0?
+    /* MSB is it possible that some processors have 0? */
 
     /* Optional grid connections, writes a 64-bit 0 if no connections */
     if(conns3 && nelems3) {
@@ -174,23 +179,6 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
     /* Create the dataspace for the dataset. */
       dims[0] = (hsize_t)nelems_out[0]*6;
       filespace = H5Screate_simple(1, dims, NULL);
-
-
-      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
-      if(h5_chunk) {
-	H5Pset_layout(chunk_pid, H5D_CHUNKED);
-	if(dims[0]%h5_chunk[1] == 0) {
-	  chunk = dims[0]/h5_chunk[1];
-	} else {
-	  printf("writehdf5 error: conns3 not evenly divisible by chunk size [1] \n");
-	  MPI_Abort(comm, 1);
-	}
-	H5Pset_chunk(chunk_pid, 1, &chunk);
-      } 
-      
-      /* Create the dataset with default properties and close filespace. */
-      did[0] = H5Dcreate(file_id, "conns3", H5T_NATIVE_ULLONG, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
-      H5Sclose(filespace);
 
       /* 
        * Each process defines dataset in memory and writes it to the hyperslab
@@ -202,6 +190,24 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	block = 1;
 	pblock = &block;
       }
+
+      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
+      if(h5_chunk) {
+	H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	if(count[0]%h5_chunk[1] == 0) {
+	  chunk = count[0]/h5_chunk[1];
+	} else {
+	  printf("writehdf5 error: conns3 not evenly divisible by chunk size [1] \n");
+	  MPI_Abort(comm, 1);
+	}
+	H5Pset_chunk(chunk_pid, 1, &chunk);
+      } 
+      
+      /* Create the dataset with default properties and close filespace. */
+      did[0] = H5Dcreate(file_id, "conns3", H5T_NATIVE_ULLONG, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
+      H5Sclose(filespace);
+
+
       
       memspace = H5Screate_simple(1, count, NULL);
       
@@ -231,11 +237,22 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       dims[0] = (hsize_t)nelems_out[1]*3;
       filespace = H5Screate_simple(1, dims, NULL);
 
+      /* 
+       * Each process defines dataset in memory and writes it to the hyperslab
+       * in the file.
+       */  
+      start[0] =(hsize_t)(nelems2*3*rank);
+      count[0] =(hsize_t)nelems2*3;
+      if(h5_chunk) {
+	block = 1;
+	pblock = &block;
+      }
+      
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
       if(h5_chunk) {
 	H5Pset_layout(chunk_pid, H5D_CHUNKED);
-	if(dims[0]%h5_chunk[2] == 0) {
-	  chunk = dims[0]/h5_chunk[2];
+	if(count[0]%h5_chunk[2] == 0) {
+	  chunk = count[0]/h5_chunk[2];
 	} else {
 	  printf("writehdf5 error: conns2 not evenly divisible by chunk size [2] \n");
 	  MPI_Abort(comm, 1);
@@ -248,18 +265,6 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       did[0] = H5Dcreate(file_id, "conns2", H5T_NATIVE_ULLONG, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
       H5Sclose(filespace);
 
-      /* 
-       * Each process defines dataset in memory and writes it to the hyperslab
-       * in the file.
-       */  
-      start[0] =(hsize_t)(nelems2*3*rank);
-      count[0] =(hsize_t)nelems2*3;
-      if(h5_chunk) {
-	block = 1;
-	pblock = &block;
-      }
-      
-      
       memspace = H5Screate_simple(1, count, NULL);
       
       /* Select hyperslab in the file.*/

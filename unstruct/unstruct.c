@@ -60,8 +60,8 @@ void print_usage(int rank, const char *errstr)
 #endif
 #ifdef HAS_HDF5
     fprintf(stderr, "   --hdf5 : Enable HDF5 output.\n"
-                    "   --hdf5_chunk npts x y \n"
-                    "      valid values of chunk size x and y are nelems2/x nelms3/y, must be divisible\n"
+                    "   --hdf5_chunk x y z\n"
+                    "      values of chunk size x, y and z are pointspertask/x, nelems2/y nelms3/z, must be divisible\n"
 	            "   --hdf5_compress : enable compression \n"
 	    );
 #endif

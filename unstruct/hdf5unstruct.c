@@ -194,8 +194,8 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
       if(h5_chunk) {
 	H5Pset_layout(chunk_pid, H5D_CHUNKED);
-	if(count[0]%h5_chunk[1] == 0) {
-	  chunk = count[0]/h5_chunk[1];
+	if(count[0]%h5_chunk[2] == 0) {
+	  chunk = count[0]/h5_chunk[2];
 	} else {
 	  printf("writehdf5 error: conns3 not evenly divisible by chunk size [1] \n");
 	  MPI_Abort(comm, 1);
@@ -251,8 +251,8 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
       if(h5_chunk) {
 	H5Pset_layout(chunk_pid, H5D_CHUNKED);
-	if(count[0]%h5_chunk[2] == 0) {
-	  chunk = count[0]/h5_chunk[2];
+	if(count[0]%h5_chunk[1] == 0) {
+	  chunk = count[0]/h5_chunk[1];
 	} else {
 	  printf("writehdf5 error: conns2 not evenly divisible by chunk size [2] \n");
 	  MPI_Abort(comm, 1);

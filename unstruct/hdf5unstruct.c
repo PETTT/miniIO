@@ -98,22 +98,22 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
        */    
       start[0] =(hsize_t)(nptstask*rank);
       count[0] =(hsize_t)nptstask;
-      if(h5_chunk) {
-	block = 1;
-	pblock = &block;
-      }
       memspace = H5Screate_simple(1, count, NULL);
 
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
       if(h5_chunk) {
-	H5Pset_layout(chunk_pid, H5D_CHUNKED);
-	if(count[0]%h5_chunk[0] == 0) {
-	  chunk = count[0]/h5_chunk[0];
-	} else {
-	  printf("writehdf5 error: nptstask not evenly divisible by chunk size [0] \n");
-	  MPI_Abort(comm, 1);
+	if(h5_chunk[0] != 0) {
+	  block = 1;
+	  pblock = &block;
+	  H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	  if(count[0]%h5_chunk[0] == 0) {
+	    chunk = count[0]/h5_chunk[0];
+	  } else {
+	    printf("writehdf5 error: nptstask not evenly divisible by chunk size [0] \n");
+	    MPI_Abort(comm, 1);
+	  }
+	  H5Pset_chunk(chunk_pid, 1, &chunk);
 	}
-	H5Pset_chunk(chunk_pid, 1, &chunk);
       } 
 
       if(hdf5_compress == 1) {
@@ -183,22 +183,22 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
        */    
       start[0] =(hsize_t)(nelems3*6*rank);
       count[0] =(hsize_t)nelems3*6;
-      if(h5_chunk) {
-	block = 1;
-	pblock = &block;
-      }
 
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
       if(h5_chunk) {
-	H5Pset_layout(chunk_pid, H5D_CHUNKED);
-	if(count[0]%h5_chunk[2] == 0) {
-	  chunk = count[0]/h5_chunk[2];
-	} else {
-	  printf("writehdf5 error: conns3 not evenly divisible by chunk size [2] \n");
-	  MPI_Abort(comm, 1);
-	}
-	H5Pset_chunk(chunk_pid, 1, &chunk);
-      } 
+	if(h5_chunk[2] != 0) {
+	  block = 1;
+	  pblock = &block;
+	  H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	  if(count[0]%h5_chunk[2] == 0) {
+	    chunk = count[0]/h5_chunk[2];
+	  } else {
+	    printf("writehdf5 error: conns3 not evenly divisible by chunk size [2] \n");
+	    MPI_Abort(comm, 1);
+	  }
+	  H5Pset_chunk(chunk_pid, 1, &chunk);
+	} 
+      }
       
       /* Create the dataset with default properties and close filespace. */
       did[0] = H5Dcreate(file_id, "conns3", H5T_NATIVE_ULLONG, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
@@ -240,22 +240,21 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
        */  
       start[0] =(hsize_t)(nelems2*3*rank);
       count[0] =(hsize_t)nelems2*3;
-      if(h5_chunk) {
-	block = 1;
-	pblock = &block;
-      }
       
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
       if(h5_chunk) {
-	H5Pset_layout(chunk_pid, H5D_CHUNKED);
-	if(count[0]%h5_chunk[1] == 0) {
-	  chunk = count[0]/h5_chunk[1];
-	} else {
-	  printf("writehdf5 error: conns2 not evenly divisible by chunk size [1] \n");
-	  MPI_Abort(comm, 1);
+	if(h5_chunk[1] != 0) {
+	  block = 1;
+	  pblock = &block;
+	  H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	  if(count[0]%h5_chunk[1] == 0) {
+	    chunk = count[0]/h5_chunk[1];
+	  } else {
+	    printf("writehdf5 error: conns2 not evenly divisible by chunk size [1] \n");
+	    MPI_Abort(comm, 1);
+	  }
+	  H5Pset_chunk(chunk_pid, 1, &chunk);
 	}
-
-	H5Pset_chunk(chunk_pid, 1, &chunk);
       }
 
       /* Create the dataset with default properties and close filespace. */
@@ -294,21 +293,21 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
        */
       start[0] =(hsize_t)(nptstask*rank);
       count[0] =(hsize_t)nptstask;
-      if(h5_chunk) {
-	block = 1;
-	pblock = &block;
-      }
 
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
       if(h5_chunk) {
-	H5Pset_layout(chunk_pid, H5D_CHUNKED);
-	if(count[0]%h5_chunk[0] == 0) {
-	  chunk = count[0]/h5_chunk[0];
-	} else {
-	  printf("writehdf5 error: nptstask not evenly divisible by chunk size [0] \n");
-	  MPI_Abort(comm, 1);
+	if(h5_chunk[0] != 0) {
+	  block = 1;
+	  pblock = &block;
+	  H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	  if(count[0]%h5_chunk[0] == 0) {
+	    chunk = count[0]/h5_chunk[0];
+	  } else {
+	    printf("writehdf5 error: nptstask not evenly divisible by chunk size [0] \n");
+	    MPI_Abort(comm, 1);
+	  }
+	  H5Pset_chunk(chunk_pid, 1, &chunk);
 	}
-	H5Pset_chunk(chunk_pid, 1, &chunk);
       }
 
       /* Create the dataset with default properties and close filespace. */

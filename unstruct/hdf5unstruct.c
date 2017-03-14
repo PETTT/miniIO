@@ -210,7 +210,7 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       
       /* Select hyperslab in the file.*/
       filespace = H5Dget_space(did[0]);
-      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL );
+      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, pblock );
 
       /* Create property list for collective dataset write. */
       plist_id = H5Pcreate(H5P_DATASET_XFER);
@@ -265,7 +265,7 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       
       /* Select hyperslab in the file.*/
       filespace = H5Dget_space(did[0]);
-      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL );
+      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, pblock );
 
       /* Create property list for collective dataset write. */
       plist_id = H5Pcreate(H5P_DATASET_XFER);
@@ -318,7 +318,7 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       
       /* Select hyperslab in the file.*/
       filespace = H5Dget_space(did[0]);
-      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL );
+      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, pblock );
 
       /* Create property list for collective dataset write. */
       plist_id = H5Pcreate(H5P_DATASET_XFER);

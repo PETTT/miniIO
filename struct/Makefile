@@ -14,6 +14,11 @@ ifdef HDF5_DIR
   SRCS += hdf5struct.c
 endif
 
+ifdef NC_DIR
+	OBJS += netcdfstruct.o
+	SRCS += netcdfstruct.c
+endif
+
 ### End of Output Modules ###
 
 CFLAGS += $(OSNINC)

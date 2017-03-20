@@ -3,4 +3,8 @@
 * See LICENSE file for details.
 */
 
-void writenc()
+#ifdef HAS_NC
+#include "netcdf.h"
+#endif
+
+void writenc();

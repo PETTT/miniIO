@@ -19,11 +19,11 @@ DBG = -g
 # Add HDF5 library, set to install directory
 # ** set via the HDF5_DIR environment variable **
 
-# Flags, set as needed; add MPI flags if wrappers weren't available 
+# Flags, set as needed; add MPI flags if wrappers weren't available
 CFLAGS =
-CXXFLAGS = 
+CXXFLAGS =
 FCFLAGS =
-LDFLAGS = 
+LDFLAGS =
 LIBS = -lm
 
 # You should probably leave the rest below alone
@@ -62,3 +62,9 @@ ifdef HDF5_DIR
   CFLAGS += -DHAS_HDF5
 endif
 
+### if NC_DIR is set then enable NetCDF-C ###
+ifdef NC_DIR
+   LIBS += $(NC_DIR)/lib/libnetcdf.a
+   INCLUDE += -I$(NC_DIR)/include
+   CFLAGS += -DHAS_NC
+endif

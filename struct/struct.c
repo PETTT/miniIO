@@ -21,6 +21,10 @@ static const float FILLVALUE = -999;
 #  include "adiosstruct.h"
 #endif
 
+#ifdef HAS_NC
+#  include "netcdfstruct.h"
+#endif
+
 #ifdef HAS_HDF5
 #  include "hdf5struct.h"
 #endif
@@ -30,7 +34,7 @@ void print_usage(int rank, const char *errstr);
 int main(int argc, char **argv)
 {
   int debug=0;                  /* Flag to generate debug prints statements */
-  int debugIO=0;                /* Flag to generate debug IO*/  
+  int debugIO=0;                /* Flag to generate debug IO*/
   int a, i, j, k, t;            /* loop indices */
   int tt;                       /* Actual time step from tstart */
   float x, y, z;
@@ -48,7 +52,7 @@ int main(int argc, char **argv)
   int point_id, tmp_id;          /* grid point id */
   int x_index, y_index, z_index; /* point index along each axis */
   int xy_dims,  x_dims;
-  float deltax, deltay, deltaz; 
+  float deltax, deltay, deltaz;
   int numPoints;
   float *data;
   float *height;
@@ -62,10 +66,10 @@ int main(int argc, char **argv)
   int mask_thres_index;
   struct osn_context *simpnoise;    /* Open simplex noise context */
   double heighttime, computetime, outtime;   /* Timers */
-  
+
   const int num_varnames=4;
   char *varnames[num_varnames];
-  
+
 
   /* MPI vars */
   MPI_Comm comm = MPI_COMM_WORLD;
@@ -73,7 +77,7 @@ int main(int argc, char **argv)
   int rank, nprocs;
   int cni, cnj, cnk;   /* Points in this task */
   int is, js, ks;     /* Global index starting points */
-  float xs, ys, zs;    /* Global coordinate starting points */  
+  float xs, ys, zs;    /* Global coordinate starting points */
 
   /* ADIOS vars */
   uint64_t cstart=0;
@@ -82,6 +86,7 @@ int main(int argc, char **argv)
 
 #ifdef HAS_HDF5
   int hdf5out = 0;
+  int ncout = 0;
   hsize_t *hdf5_chunk=NULL;
   int hdf5_compress = 0;
 #endif
@@ -151,6 +156,18 @@ int main(int argc, char **argv)
       MPI_Abort(MPI_COMM_WORLD, 1);
     }
 #endif
+  else if (!strcasecmp(argv[a],"--nc") )
+    {
+#ifdef HAS_NC
+      ncout = 1;
+    }
+#else
+    if(rank == 0) fprintf(stderr, "NC Option not available: $s\n\n", argv[a]);
+    print_usage(rank, NULL);
+    MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+#endif
+
     else {
       if(rank == 0)   fprintf(stderr, "Option not recognized: %s\n\n", argv[a]);
       print_usage(rank, NULL);
@@ -160,7 +177,7 @@ int main(int argc, char **argv)
 
   numPoints = ni*nj*nk;
   npoints  = numPoints;
- 
+
   /* Check arguments & proc counts */
   if(inp < 1 || jnp < 1 ) {
     print_usage(rank, "Error: tasks not specified or incorrect");
@@ -213,7 +230,7 @@ int main(int argc, char **argv)
   mask_thres = mask_thres - bot_mask_thres;
   mask_thres_index = (int) ( ((mask_thres+1)/2) * (nk-1));
   maskTindex = nk-1;
-  
+
   if (debug) {
     /* printf("rank_cord(%d,%d,%d) rank=%d: %d of %d\n", crnk[0], crnk[1], crnk[2] , rank, rank+1, nprocs); */
     printf("Grid size= (%d x %d x %d) = %llu points\n", ni, nj, nk, npoints);
@@ -273,7 +290,7 @@ int main(int argc, char **argv)
 
 	/* height_index = (int) height[ii]/deltaz; */
 	height_index = (int) (((height[ii]+1)/2) * (nk-1));
-	  
+
 	/* Calculate ola_mask values */
 	if (z_index > mask_thres_index  && z_index > height_index) {
 	  ola_mask[ii] = 2;  /* Atmosphere */
@@ -295,14 +312,14 @@ int main(int argc, char **argv)
 	else {
 	  printf("WARNING: ola_mask condition not considered for Point_index: (%d,%d,%d)\n"
 		 "Point_id: %d  Height: %f HeightID: %d  mask_thres_index=%d\n",
-		 x_index, y_index, z_index, point_id+1, height[ii], height_index, mask_thres_index); 
+		 x_index, y_index, z_index, point_id+1, height[ii], height_index, mask_thres_index);
 	}
 
-	
+
 	hindex = (int) ( (((height[ii]+1)/2) * (nk-1)) / (mask_thres_index+1)) * (nk-1);
 
 	hindex = (int) ((height[ii]+1) / (mask_thres+1) * (nk-1));
-	
+
 	if (hindex > maskTindex) {
 	  hindex = maskTindex;
 	}
@@ -325,28 +342,28 @@ int main(int argc, char **argv)
 	else {
 	  printf("WARNING: ol_mask condition not considered for Point_index: (%d,%d,%d)\n"
 		 "Point_id: %d  Height: %f HeightID: %d maskTindex=%d\n",
-		 x_index, y_index, z_index, point_id+1, height[ii], hindex, maskTindex); 
+		 x_index, y_index, z_index, point_id+1, height[ii], hindex, maskTindex);
 	}
 
 	if (debug) {
 	  printf("++++++++++++++++++++++++++++++++++++++++++++\n");
 	  printf("rank_cord(%d,%d,%d) rank=%d: %d of %d\n", crnk[0], crnk[1], crnk[2] , rank, rank+1, nprocs);
-	  printf("LDims: (%d,%d,%d)\n", cni, cnj, cnk); 
+	  printf("LDims: (%d,%d,%d)\n", cni, cnj, cnk);
 	  printf("GDims: (%d,%d,%d)\n", ni, nj, nk);
-	  printf("SDims: (%d,%d,%d)\n", is, js, ks); 
+	  printf("SDims: (%d,%d,%d)\n", is, js, ks);
 	  printf("Point_index: (%d,%d,%d), Point_id:  %d\n", x_index, y_index, z_index,  point_id+1);
 	  printf("Point_pos: (%f, %f, %f)  mask_thres_index %d -> %d\n", x, y, z, mask_thres_index, maskTindex);
 	  printf("Height: %f HeightID: %d -> %d ola_mask=%d -> %d\n", height[ii], height_index,  hindex, ola_mask[ii], ol_mask[ii]);
-	}	      
-	
+	}
+
 	x += deltax;
       }
       y += deltay;
     }
     z += deltaz;
-  }	
+  }
   timer_tock(&heighttime);
- 
+
   /* generate ocean land data */
   for(t = 0, tt = tstart; t < nt; t++, tt++) {
     /* Spatial loops */
@@ -366,22 +383,22 @@ int main(int argc, char **argv)
 	  else {
 	    data[ii] = FILLVALUE;
 	  }
-       
+
 	  x += deltax;
 	}
 	y += deltay;
       }
       z += deltaz;
-    }	
+    }
     timer_tock(&computetime);
 
 
     timer_tick(&outtime, comm, 1);
-    
+
 #ifdef HAS_ADIOS
     if (adios_method) adiosstruct_write(&adiosstruct_nfo, tt);
 #endif
- 
+
 #ifdef HAS_HDF5
     if(hdf5out) {
       if(rank == 0) {
@@ -389,10 +406,20 @@ int main(int argc, char **argv)
       }
       writehdf5(num_varnames, varnames, comm, rank, nprocs, tt,
 		is, js, ks,
-		ni, nj, nk, cni, cnj, cnk,  
+		ni, nj, nk, cni, cnj, cnk,
 		deltax, deltay, deltaz,
 		data, height, ola_mask, ol_mask, hdf5_chunk, hdf5_compress);
     }
+#endif
+
+#ifdef HAS_NC
+    if(ncout) {
+      if(rank == 0) {
+        printf("     Writing netCDF...\n"); fflush(stdout);
+      }
+      writenc();
+    }
+
 #endif
 
     timer_tock(&outtime);
@@ -439,7 +466,7 @@ void print_usage(int rank, const char *errstr)
 	  "        NOTE that INP * JNP * KNP == NPROCS is required!\n"
 	  "    --size NI NJ NK : Specifies the size of the grid\n"
 	  "      NI, NJ, NK : Number of grid points along the I,J,K axes respectively\n"
-	  "      valid values are > 1\n\n" 
+	  "      valid values are > 1\n\n"
 	  "  Optional:\n"
 	  "    --debug : Turns on debugging print statements \n"
 	  "    --maskthreshold MT : Mask theshold; valid values are floats between -1.0 and 1.0 \n"
@@ -456,12 +483,19 @@ void print_usage(int rank, const char *errstr)
 	  "    --debugIO : Turns on debugging IO (corrently only works with ADIOS IO) \n"
 #endif
 
-	  
+
 #ifdef HAS_HDF5
 	  "    --hdf5 : Enable HDF5 output (i.e. XDMF)\n"
 	  "    --hdf5_chunk CI : Chunk Size CI CJ \n"
 		  "      valid values are CI <= NI, CJ <= NJ\n"
 	  "    --hdf5_compress : enable compression \n"
 #endif
+
+#ifdef HAS_NC
+      "    --nc : Enable NetCDF Output\n"
+#endif
+
 	  );
+
+
 }

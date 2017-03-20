@@ -1,5 +1,5 @@
 TEST examples
-
+mpirun --np 4 ./struct --tasks 2 2 --size 16 12 2 --tsteps 1 --hdf5 --hdf5_chunk 2 2
 # Smallest test (test1):
 mpirun --np 4 ./struct --tasks 2 2 --size 2 2 2 --tsteps 1
 

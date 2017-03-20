@@ -6,17 +6,12 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
-#include <hdf5.h>
 
 #include <pdirs.h>
-
+#include "hdf5unstruct.h"
 
 uint64_t nelems_in[2];
 uint64_t nelems_out[2];
-
-void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t nptstask,
-               float *xpts, float *ypts, float *zpts, uint64_t nelems3, uint64_t *conns3,
-               uint64_t nelems2, uint64_t *conns2, char *varname, float *data);
 
 void
 write_xdmf_xml(char *fname, char *fname_xdmf, uint64_t npoints);
@@ -25,7 +20,7 @@ static const int fnstrmax = 4095;
 
 void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t nptstask, 
                float *xpts, float *ypts, float *zpts, uint64_t nelems3, uint64_t *conns3,
-               uint64_t nelems2, uint64_t *conns2, char *varname, float *data)
+               uint64_t nelems2, uint64_t *conns2, char *varname, float *data, hsize_t *h5_chunk, int hdf5_compress)
 {
     char dirname[fnstrmax+1];
     char fname[fnstrmax+1];
@@ -43,8 +38,11 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
     
     hid_t did[3];
     hsize_t start[1], count[1];
+    hsize_t block, *pblock=NULL;
     hsize_t dims[1];
     herr_t err;
+    hid_t chunk_pid;
+    hsize_t chunk;
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
@@ -88,34 +86,60 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       MPI_Abort(comm, 1);
     }
 
-    
     /* Optional grid points */
     if(xpts && ypts && zpts) {
       /* Create the dataspace for the dataset. */
       dims[0] = (hsize_t)npoints;
       filespace = H5Screate_simple(1, dims, NULL);
 
+      /* 
+       * Each process defines dataset in memory and writes it to the hyperslab
+       * in the file.
+       */    
+      start[0] =(hsize_t)(nptstask*rank);
+      count[0] =(hsize_t)nptstask;
+      memspace = H5Screate_simple(1, count, NULL);
+
+      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
+      if(h5_chunk) {
+	if(h5_chunk[0] != 0) {
+	  block = 1;
+	  pblock = &block;
+	  H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	  if(count[0]%h5_chunk[0] == 0) {
+	    chunk = count[0]/h5_chunk[0];
+	  } else {
+	    printf("writehdf5 error: nptstask not evenly divisible by chunk size [0] \n");
+	    MPI_Abort(comm, 1);
+	  }
+	  H5Pset_chunk(chunk_pid, 1, &chunk);
+	}
+      } 
+
+      if(hdf5_compress == 1) {
+
+	/* Set ZLIB / DEFLATE Compression using compression level 6. */
+	H5Pset_deflate (chunk_pid, 6);
+
+	/* Uncomment these lines to set SZIP Compression
+	   szip_options_mask = H5_SZIP_NN_OPTION_MASK;
+	   szip_pixels_per_block = 16;
+	   status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
+	*/
+      }
+
       /* Create Grid Group */
       group_id = H5Gcreate(file_id, "grid points", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
       /* Create the dataset with default properties and close filespace. */
-      did[0] = H5Dcreate(group_id, "x", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-      did[1] = H5Dcreate(group_id, "y", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-      did[2] = H5Dcreate(group_id, "z", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      did[0] = H5Dcreate(group_id, "x", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
+      did[1] = H5Dcreate(group_id, "y", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
+      did[2] = H5Dcreate(group_id, "z", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
       H5Sclose(filespace);
 
-      /* 
-       * Each process defines dataset in memory and writes it to the hyperslab
-       * in the file.
-       */
-      start[0] =(hsize_t)(nptstask*rank);
-      count[0] =(hsize_t)nptstask;
-      
-      memspace = H5Screate_simple(1, count, NULL);
-      
       /* Select hyperslab in the file.*/
       filespace = H5Dget_space(did[0]);
-      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL );
+      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, pblock );
 
       /* Create property list for collective dataset write. */
       plist_id = H5Pcreate(H5P_DATASET_XFER);
@@ -133,17 +157,18 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       err = H5Sclose(memspace);
       err = H5Gclose(group_id);
     
+      if(h5_chunk)
+	H5Pclose(chunk_pid);
     }
     if(H5Pclose(plist_id) < 0)
       printf("writehdf5 error: Could not close property list \n");
 
-    
     nelems_in[0] = nelems3 ;
     nelems_in[1] = nelems2 ;
 
     MPI_Allreduce( nelems_in, nelems_out, 2, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD );
 
-    //MSB is it possible that some processors have 0?
+    /* MSB is it possible that some processors have 0? */
 
     /* Optional grid connections, writes a 64-bit 0 if no connections */
     if(conns3 && nelems3) {
@@ -152,22 +177,40 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       dims[0] = (hsize_t)nelems_out[0]*6;
       filespace = H5Screate_simple(1, dims, NULL);
 
-      /* Create the dataset with default properties and close filespace. */
-      did[0] = H5Dcreate(file_id, "conns3", H5T_NATIVE_ULLONG, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-      H5Sclose(filespace);
-
       /* 
        * Each process defines dataset in memory and writes it to the hyperslab
        * in the file.
-       */
+       */    
       start[0] =(hsize_t)(nelems3*6*rank);
       count[0] =(hsize_t)nelems3*6;
+
+      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
+      if(h5_chunk) {
+	if(h5_chunk[2] != 0) {
+	  block = 1;
+	  pblock = &block;
+	  H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	  if(count[0]%h5_chunk[2] == 0) {
+	    chunk = count[0]/h5_chunk[2];
+	  } else {
+	    printf("writehdf5 error: conns3 not evenly divisible by chunk size [2] \n");
+	    MPI_Abort(comm, 1);
+	  }
+	  H5Pset_chunk(chunk_pid, 1, &chunk);
+	} 
+      }
+      
+      /* Create the dataset with default properties and close filespace. */
+      did[0] = H5Dcreate(file_id, "conns3", H5T_NATIVE_ULLONG, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
+      H5Sclose(filespace);
+
+
       
       memspace = H5Screate_simple(1, count, NULL);
       
       /* Select hyperslab in the file.*/
       filespace = H5Dget_space(did[0]);
-      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL );
+      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, pblock );
 
       /* Create property list for collective dataset write. */
       plist_id = H5Pcreate(H5P_DATASET_XFER);
@@ -179,6 +222,8 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       
       err = H5Sclose(filespace);
       err = H5Sclose(memspace);
+      if(h5_chunk)
+	H5Pclose(chunk_pid);
 
     }
 
@@ -189,22 +234,38 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       dims[0] = (hsize_t)nelems_out[1]*3;
       filespace = H5Screate_simple(1, dims, NULL);
 
-      /* Create the dataset with default properties and close filespace. */
-      did[0] = H5Dcreate(file_id, "conns2", H5T_NATIVE_ULLONG, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-      H5Sclose(filespace);
-
       /* 
        * Each process defines dataset in memory and writes it to the hyperslab
        * in the file.
-       */
+       */  
       start[0] =(hsize_t)(nelems2*3*rank);
       count[0] =(hsize_t)nelems2*3;
       
+      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
+      if(h5_chunk) {
+	if(h5_chunk[1] != 0) {
+	  block = 1;
+	  pblock = &block;
+	  H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	  if(count[0]%h5_chunk[1] == 0) {
+	    chunk = count[0]/h5_chunk[1];
+	  } else {
+	    printf("writehdf5 error: conns2 not evenly divisible by chunk size [1] \n");
+	    MPI_Abort(comm, 1);
+	  }
+	  H5Pset_chunk(chunk_pid, 1, &chunk);
+	}
+      }
+
+      /* Create the dataset with default properties and close filespace. */
+      did[0] = H5Dcreate(file_id, "conns2", H5T_NATIVE_ULLONG, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
+      H5Sclose(filespace);
+
       memspace = H5Screate_simple(1, count, NULL);
       
       /* Select hyperslab in the file.*/
       filespace = H5Dget_space(did[0]);
-      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL );
+      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, pblock );
 
       /* Create property list for collective dataset write. */
       plist_id = H5Pcreate(H5P_DATASET_XFER);
@@ -213,7 +274,8 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       
 
       err = H5Dclose(did[0]);
-      
+      if(h5_chunk)
+	H5Pclose(chunk_pid);
       err = H5Sclose(filespace);
       err = H5Sclose(memspace);
 
@@ -225,22 +287,38 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       dims[0] = (hsize_t)npoints;
       filespace = H5Screate_simple(1, dims, NULL);
 
-      /* Create the dataset with default properties and close filespace. */
-      did[0] = H5Dcreate(file_id, "vars", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-      H5Sclose(filespace);
-
       /* 
        * Each process defines dataset in memory and writes it to the hyperslab
        * in the file.
        */
       start[0] =(hsize_t)(nptstask*rank);
       count[0] =(hsize_t)nptstask;
+
+      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
+      if(h5_chunk) {
+	if(h5_chunk[0] != 0) {
+	  block = 1;
+	  pblock = &block;
+	  H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	  if(count[0]%h5_chunk[0] == 0) {
+	    chunk = count[0]/h5_chunk[0];
+	  } else {
+	    printf("writehdf5 error: nptstask not evenly divisible by chunk size [0] \n");
+	    MPI_Abort(comm, 1);
+	  }
+	  H5Pset_chunk(chunk_pid, 1, &chunk);
+	}
+      }
+
+      /* Create the dataset with default properties and close filespace. */
+      did[0] = H5Dcreate(file_id, "vars", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
+      H5Sclose(filespace);
       
       memspace = H5Screate_simple(1, count, NULL);
       
       /* Select hyperslab in the file.*/
       filespace = H5Dget_space(did[0]);
-      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL );
+      H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, pblock );
 
       /* Create property list for collective dataset write. */
       plist_id = H5Pcreate(H5P_DATASET_XFER);
@@ -263,6 +341,9 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	printf("writehdf5 error: Could not close HDF5 memory space \n");
 	MPI_Abort(comm, 1);
       }
+      if(h5_chunk)
+	H5Pclose(chunk_pid);
+
     }
 
     if(H5Fclose(file_id) != 0)

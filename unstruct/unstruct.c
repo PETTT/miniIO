@@ -19,6 +19,10 @@
 #  include "adiosunstruct.h"
 #endif
 
+#ifdef HAS_HDF5
+#  include "hdf5unstruct.h"
+#endif
+
 /*## End of Output Module Includes ##*/
 
 void print_usage(int rank, const char *errstr)
@@ -55,7 +59,12 @@ void print_usage(int rank, const char *errstr)
     fprintf(stderr, "   --przm : Enable PRZM output.\n");
 #endif
 #ifdef HAS_HDF5
-    fprintf(stderr, "   --hdf5 : Enable HDF5 output.\n");
+    fprintf(stderr, "   --hdf5 : Enable HDF5 output.\n"
+                    "   --hdf5_chunk x y z\n"
+                    "      values of chunk size; x, y and z are pointspertask/x, nelems2/y nelms3/z, must be divisible\n"
+                    "      setting x, y and z values to zero disables chunking, respectively\n"
+	            "   --hdf5_compress : enable compression \n"
+	    );
 #endif
     /*## End of Output Module Usage Strings ##*/
 }
@@ -183,6 +192,8 @@ int main(int argc, char **argv)
 
 #ifdef HAS_HDF5
     int hdf5out = 0;
+    hsize_t *hdf5_chunk=NULL;
+    int hdf5_compress = 0;
 #endif
 
     /*## End of Output Module Variables ##*/
@@ -232,6 +243,15 @@ int main(int argc, char **argv)
         else if(!strcasecmp(argv[a], "--hdf5")) {
             hdf5out = 1;
         }
+        else if(!strcasecmp(argv[a], "--hdf5_chunk")) {
+	  hdf5_chunk = malloc(3 * sizeof(hsize_t));
+	  hdf5_chunk[0] = (hsize_t)strtoul(argv[++a], NULL, 0);
+	  hdf5_chunk[1] = (hsize_t)strtoul(argv[++a], NULL, 0);
+	  hdf5_chunk[2] = (hsize_t)strtoul(argv[++a], NULL, 0);
+        }
+	else if(!strcasecmp(argv[a], "--hdf5_compress")) {
+	  hdf5_compress=1;
+	}
 #endif
 
         /*## End of Output Module Command Line Arguments ##*/
@@ -418,7 +438,7 @@ int main(int argc, char **argv)
                 printf("   Writing hdf5...\n");   fflush(stdout);
             }
             writehdf5("unstruct", MPI_COMM_WORLD, t, npoints, nptstask, xpts, ypts, zpts,
-                      nelems3, conns3, nelems2, conns2, "noise", data);
+                      nelems3, conns3, nelems2, conns2, "noise", data, hdf5_chunk, hdf5_compress);
 
 	    
         }

@@ -100,12 +100,14 @@ void print_usage(int rank, const char *errstr)
 #endif
 
 #ifdef HAS_HDF5
-    fprintf(stderr, "    --hdf5i : Enable HDF5 full output.\n");
-    fprintf(stderr, "    --hdf5p : Enable HDF5 isosurface output.\n");
-    fprintf(stderr, "    --hdf5i_chunk CI CJ CK : Chunk Size (CI,CJ,CK); full output.\n"
-                    "      valid values are CI <= NI, CJ <= NJ, CK <= NK\n");
-    fprintf(stderr, "    --hdf5p_chunk CI : Integer percentage of triangles (CI); isosurface output.\n"
-                    "      valid values are 0 < CI <= 100 \n");
+    fprintf(stderr, "    --hdf5i : Enable HDF5 full output.\n"
+                    "    --hdf5p : Enable HDF5 isosurface output.\n"
+                    "    --hdf5i_chunk CI CJ CK : Chunk Size (CI,CJ,CK); full output.\n"
+                    "      valid values are CI <= NI, CJ <= NJ, CK <= NK\n"
+                    "    --hdf5p_chunk CI : Integer percentage of triangles (CI); isosurface output.\n"
+                    "      valid values are 0 < CI <= 100 \n"
+	            "    --hdf5_compress : enable compression \n"
+	    );
 #endif
     /*## End of Output Module Usage Strings ##*/
 }
@@ -217,6 +219,7 @@ int main(int argc, char **argv)
     int hdf5pout = 0;
     hsize_t *hdf5i_chunk=NULL;
     hsize_t *hdf5p_chunk=NULL;
+    int hdf5_compress = 0;
 #endif
 
     /*## End of Output Module Variables ##*/
@@ -315,6 +318,9 @@ int main(int argc, char **argv)
 	  hdf5p_chunk = malloc(1 * sizeof(hsize_t));
 	  hdf5p_chunk[0] = (hsize_t)strtoul(argv[++a], NULL, 0);
         }
+	else if(!strcasecmp(argv[a], "--hdf5_compress")) {
+	  hdf5_compress=1;
+	}
 #endif
 
         /*## End of Output Module Command Line Arguments ##*/
@@ -536,10 +542,10 @@ int main(int argc, char **argv)
             }
             writehdf5i("cartiso", "value", comm, rank, nprocs, tt, ni, nj, nk,
                       is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
-		       deltax, deltay, deltaz, cni, cnj, cnk, data, hdf5i_chunk);
+		       deltax, deltay, deltaz, cni, cnj, cnk, data, hdf5i_chunk, hdf5_compress);
             writehdf5i("cartiso", "noise", comm, rank, nprocs, tt, ni, nj, nk,
                       is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
-                      deltax, deltay, deltaz, cni, cnj, cnk, xdata, hdf5i_chunk);
+		       deltax, deltay, deltaz, cni, cnj, cnk, xdata, hdf5i_chunk, hdf5_compress);
         }
 #endif
 
@@ -589,7 +595,7 @@ int main(int argc, char **argv)
                 printf("      Writing hdf5p...\n");   fflush(stdout);
             }
             writehdf5p("cartiso", "iso", comm, rank, nprocs, tt, iso.ntris,
-		       iso.points, iso.norms, iso.xvals, "noise", hdf5p_chunk);
+		       iso.points, iso.norms, iso.xvals, "noise", hdf5p_chunk, hdf5_compress);
         }
 #endif
 

@@ -66,6 +66,10 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
       if(h5_chunk) {
 	H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0 ) {
+	  printf("writehdf5 error: Could not set fill time\n");
+	  MPI_Abort(comm, 1);
+	}
 	h5_chunk[2]=dimsm[2];
 	H5Pset_chunk(chunk_pid, 3, h5_chunk);
       }

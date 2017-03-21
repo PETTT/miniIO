@@ -115,20 +115,20 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	      printf("writehdf5 error: nptstask not evenly divisible by chunk size [0] \n");
 	      MPI_Abort(comm, 1);
 	    }
-	    H5Pset_chunk(chunk_pid, 1, &chunk);
-	  }
-	} 
+	    H5Pset_chunk(chunk_pid, 1, &chunk); 
 	
-	if(hdf5_compress == 1) {
-
-	/* Set ZLIB / DEFLATE Compression using compression level 6. */
-	  H5Pset_deflate (chunk_pid, 6);
-	  
-	  /* Uncomment these lines to set SZIP Compression
-	     szip_options_mask = H5_SZIP_NN_OPTION_MASK;
-	     szip_pixels_per_block = 16;
-	     status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
-	  */
+	    if(hdf5_compress == 1) {
+	      
+	      /* Set ZLIB / DEFLATE Compression using compression level 6. */
+	      H5Pset_deflate (chunk_pid, 6);
+	      
+	      /* Uncomment these lines to set SZIP Compression
+		 szip_options_mask = H5_SZIP_NN_OPTION_MASK;
+		 szip_pixels_per_block = 16;
+		 status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
+	      */
+	    }
+	  }
 	}
 
 	/* Create Grid Group */
@@ -179,6 +179,17 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	      MPI_Abort(comm, 1);
 	    }
 	    H5Pset_chunk(chunk_pid, 1, &chunk);
+	    if(hdf5_compress == 1) {
+	      
+	      /* Set ZLIB / DEFLATE Compression using compression level 6. */
+	      H5Pset_deflate (chunk_pid, 6);
+	      
+	      /* Uncomment these lines to set SZIP Compression
+		 szip_options_mask = H5_SZIP_NN_OPTION_MASK;
+		 szip_pixels_per_block = 16;
+		 status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
+	      */
+	    }
 	  } 
 	}
       
@@ -193,7 +204,7 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 
       }
 
-/*     Optional 2D surface triangle connections, writes a 64-bit 0 if none */
+      /* Optional 2D surface triangle connections, writes a 64-bit 0 if none */
       if(conns2 && nelems2) {
 
       /* Create the dataspace for the dataset. */
@@ -218,6 +229,17 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	      MPI_Abort(comm, 1);
 	    }
 	    H5Pset_chunk(chunk_pid, 1, &chunk);
+	    if(hdf5_compress == 1) {
+	      
+	      /* Set ZLIB / DEFLATE Compression using compression level 6. */
+	      H5Pset_deflate (chunk_pid, 6);
+	      
+	      /* Uncomment these lines to set SZIP Compression
+		 szip_options_mask = H5_SZIP_NN_OPTION_MASK;
+		 szip_pixels_per_block = 16;
+		 status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
+	      */
+	    }
 	  }
 	}
 	
@@ -253,6 +275,17 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	      MPI_Abort(comm, 1);
 	    }
 	    H5Pset_chunk(chunk_pid, 1, &chunk);
+	    if(hdf5_compress == 1) {
+	      
+	      /* Set ZLIB / DEFLATE Compression using compression level 6. */
+	      H5Pset_deflate (chunk_pid, 6);
+	      
+	      /* Uncomment these lines to set SZIP Compression
+		 szip_options_mask = H5_SZIP_NN_OPTION_MASK;
+		 szip_pixels_per_block = 16;
+		 status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
+	      */
+	    }
 	  }
 	}
 
@@ -272,6 +305,7 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       if(H5Fclose(file_id) != 0)
 	printf("writehdf5 error: Could not close HDF5 file \n");
     }
+
     MPI_Barrier(MPI_COMM_WORLD);
     /*******************/
 
@@ -379,7 +413,6 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
       err = H5Dwrite (did[0], H5T_NATIVE_ULLONG, memspace, filespace, plist_id, conns3);
       
-
       err = H5Dclose(did[0]);
       
       err = H5Sclose(filespace);
@@ -417,7 +450,6 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       plist_id = H5Pcreate(H5P_DATASET_XFER);
       H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
       err = H5Dwrite (did[0], H5T_NATIVE_ULLONG, memspace, filespace, plist_id, conns3);
-      
 
       err = H5Dclose(did[0]);
       err = H5Sclose(filespace);
@@ -460,12 +492,10 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	printf("writehdf5 error: Could not write HDF5 file \n");
 	MPI_Abort(comm, 1);
       }
-      
       if(H5Dclose(did[0]) ){
 	printf("writehdf5 error: Could not close HDF5 data space \n");
 	MPI_Abort(comm, 1);
       }
-      
       if(H5Sclose(filespace)) {
 	printf("writehdf5 error: Could not close HDF5 file space \n");
 	MPI_Abort(comm, 1);
@@ -478,10 +508,8 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	printf("writehdf5 error: Could not close property list \n");
 
     }
-
     if(H5Fclose(file_id) != 0)
       printf("writehdf5 error: Could not close HDF5 file \n");
-
 }
 
 void

@@ -77,6 +77,10 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 
 	H5Pset_layout(chunk_pid, H5D_CHUNKED);
 
+	if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0 ) {
+	  printf("writehdf5 error: Could not set fill time\n");
+	  MPI_Abort(comm, 1);
+	}
 	hsize_t chunk = (dims[0] * h5_chunk[0])/100;
 	H5Pset_chunk(chunk_pid, 1, &chunk);
       }

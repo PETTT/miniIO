@@ -106,6 +106,10 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	  block = 1;
 	  pblock = &block;
 	  H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	  if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0 ) {
+	    printf("writehdf5 error: Could not set fill time\n");
+	    MPI_Abort(comm, 1);
+	  }
 	  if(count[0]%h5_chunk[0] == 0) {
 	    chunk = count[0]/h5_chunk[0];
 	  } else {
@@ -190,6 +194,10 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	  block = 1;
 	  pblock = &block;
 	  H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	  if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0 ) {
+	    printf("writehdf5 error: Could not set fill time\n");
+	    MPI_Abort(comm, 1);
+	  }
 	  if(count[0]%h5_chunk[2] == 0) {
 	    chunk = count[0]/h5_chunk[2];
 	  } else {
@@ -247,6 +255,10 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	  block = 1;
 	  pblock = &block;
 	  H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	  if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0 ) {
+	    printf("writehdf5 error: Could not set fill time\n");
+	    MPI_Abort(comm, 1);
+	  }
 	  if(count[0]%h5_chunk[1] == 0) {
 	    chunk = count[0]/h5_chunk[1];
 	  } else {
@@ -300,6 +312,10 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	  block = 1;
 	  pblock = &block;
 	  H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	  if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0) {
+	    printf("writehdf5 error: Could not set fill time\n");
+	    MPI_Abort(comm, 1);
+	  }
 	  if(count[0]%h5_chunk[0] == 0) {
 	    chunk = count[0]/h5_chunk[0];
 	  } else {

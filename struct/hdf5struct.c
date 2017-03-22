@@ -163,7 +163,6 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
       count[0] = (hsize_t)(cnk);
       count[1] = (hsize_t)(cnj);
       count[2] = (hsize_t)(cni);
-      printf("start %d %d %d %d \n",rank,start[0],start[1],start[2]);
     }
 
     memspace = H5Screate_simple(3, dimsm, NULL);

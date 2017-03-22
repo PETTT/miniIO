@@ -43,6 +43,7 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     int j;
     herr_t err;
     hid_t chunk_pid;
+    hsize_t chunk[3];
     
     snprintf(fname, fnstrmax, "struct_t%0*d.h5", timedigits, tstep);
     snprintf(fname_xdmf, fnstrmax, "struct_t%0*d.xmf", timedigits, tstep);
@@ -70,20 +71,23 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 	  printf("writehdf5 error: Could not set fill time\n");
 	  MPI_Abort(comm, 1);
 	}
-	h5_chunk[2]=dimsm[2];
-	H5Pset_chunk(chunk_pid, 3, h5_chunk);
-      }
+	chunk[0]=dimsm[0]/h5_chunk[1];
+	chunk[1]=dimsm[1]/h5_chunk[0];
+	chunk[2]=dimsm[2];
+	
+	H5Pset_chunk(chunk_pid, 3, chunk);
 
-      if(hdf5_compress == 1) {
-
-	/* Set ZLIB / DEFLATE Compression using compression level 6. */
-	H5Pset_deflate (chunk_pid, 6);
-
-	/* Uncomment these lines to set SZIP Compression
-	   szip_options_mask = H5_SZIP_NN_OPTION_MASK;
-	   szip_pixels_per_block = 16;
-	   status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
-	*/
+	if(hdf5_compress == 1) {
+	  
+	  /* Set ZLIB / DEFLATE Compression using compression level 6. */
+	  H5Pset_deflate (chunk_pid, 6);
+	  
+	  /* Uncomment these lines to set SZIP Compression
+	     szip_options_mask = H5_SZIP_NN_OPTION_MASK;
+	     szip_pixels_per_block = 16;
+	     status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
+	  */
+	}
       }
 
       /* Create the dataset with default properties */
@@ -107,6 +111,10 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
       }
       /* Close the file */
       H5Fclose(file_id);
+
+      /* Create xdmf file for timestep */
+      write_xdmf_xml(fname, fname_xdmf, num_varnames, varnames, ni, nj, nk, deltax, deltay, deltaz);
+
     }
     
     MPI_Barrier(comm);
@@ -212,10 +220,6 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     if(H5Fclose(file_id) != 0)
       printf("writehdf5 error: Could not close HDF5 file \n");
 
-      /* Create xdmf file for timestep */
-    if(rank == 0) {
-      write_xdmf_xml(fname, fname_xdmf, num_varnames, varnames, ni, nj, nk, deltax, deltay, deltaz);
-    }
 }
 
 void

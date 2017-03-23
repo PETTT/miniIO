@@ -59,7 +59,8 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     dimsm[2] = cni;
 
 #ifdef TIMEIO
-    t1 = MPI_Wtime();
+    double createfile, prewrite, write, postwrite;   /* Timers */
+    timer_tick(&createfile, comm, 0);
 #endif
 
     if(rank == 0) {
@@ -126,12 +127,8 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     
     MPI_Barrier(comm);
 #ifdef TIMEIO
-    
-    t2 = MPI_Wtime();
-    if(rank == 0) {
-      printf("0 proc. create file --");
-      printf("MPI_Wtime measured: %1.2f\n", t2-t1);
-    }
+    timer_tock(&createfile);
+    timer_collectprintstats(createfile, comm, 0, "CreateFile");
     t1 = MPI_Wtime();
 #endif
 
@@ -254,7 +251,6 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
       printf("writehdf5 error: Could not close HDF5 file \n");
 #ifdef TIMEIO
     t2 = MPI_Wtime();
-    
     if(rank == 0) {
       printf("0 proc post-write --");
       printf("MPI_Wtime measured: %1.2f\n", t2-t1);

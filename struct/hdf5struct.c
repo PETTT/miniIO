@@ -13,6 +13,8 @@
 #include "hdf5.h"
 #include "hdf5struct.h"
 
+#define TIMEIO
+
 static const int fnstrmax = 4095;
 
 void
@@ -44,6 +46,7 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     herr_t err;
     hid_t chunk_pid;
     hsize_t chunk[3];
+    double t1, t2;
     
     snprintf(fname, fnstrmax, "struct_t%0*d.h5", timedigits, tstep);
     snprintf(fname_xdmf, fnstrmax, "struct_t%0*d.xmf", timedigits, tstep);
@@ -54,6 +57,10 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     dimsm[0] = cnk;
     dimsm[1] = cnj;
     dimsm[2] = cni;
+
+#ifdef TIMEIO
+    t1 = MPI_Wtime();
+#endif
 
     if(rank == 0) {
 
@@ -118,6 +125,15 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     }
     
     MPI_Barrier(comm);
+#ifdef TIMEIO
+    
+    t2 = MPI_Wtime();
+    if(rank == 0) {
+      printf("0 proc. create file --");
+      printf("MPI_Wtime measured: %1.2f\n", t2-t1);
+    }
+    t1 = MPI_Wtime();
+#endif
 
     /* Set up MPI info */
     MPI_Info_create(&info);
@@ -170,9 +186,17 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     /* Create property list for collective dataset write. */
     plist_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-
+#ifdef TIMEIO
+      t2 = MPI_Wtime();
+    if(rank == 0) {
+      printf("0 proc pre-write --");
+      printf("MPI_Wtime measured: %1.2f\n", t2-t1);
+    }
+#endif
     for (j=0; j<num_varnames; j++) {
-
+#ifdef TIMEIO
+      t1 = MPI_Wtime();
+#endif
       did = H5Dopen(file_id, varnames[j],H5P_DEFAULT);
 
       /* 
@@ -202,10 +226,20 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 	fprintf(stderr, "writehdf5 error: could not write datset %s \n", varnames[j]);
 	MPI_Abort(comm, 1);
       }
-
       err = H5Dclose(did);
-    }
 
+#ifdef TIMEIO
+      MPI_Barrier(comm);
+      t2 = MPI_Wtime();
+      if(rank == 0) {
+	printf("0 proc write '%s' --",varnames[j]);
+	printf("MPI_Wtime measured: %1.2f\n", t2-t1);
+      }
+#endif
+    }
+#ifdef TIMEIO
+    t1 = MPI_Wtime();
+#endif
     if(H5Sclose(memspace)  != 0)
       printf("writehdf5 error: Could not close memory space \n");
 
@@ -218,7 +252,14 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 
     if(H5Fclose(file_id) != 0)
       printf("writehdf5 error: Could not close HDF5 file \n");
-
+#ifdef TIMEIO
+    t2 = MPI_Wtime();
+    
+    if(rank == 0) {
+      printf("0 proc post-write --");
+      printf("MPI_Wtime measured: %1.2f\n", t2-t1);
+    }
+#endif
 }
 
 void

@@ -46,7 +46,6 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     herr_t err;
     hid_t chunk_pid;
     hsize_t chunk[3];
-    double t1, t2;
     
     snprintf(fname, fnstrmax, "struct_t%0*d.h5", timedigits, tstep);
     snprintf(fname_xdmf, fnstrmax, "struct_t%0*d.xmf", timedigits, tstep);

@@ -9,6 +9,7 @@
 
 #include <pdirs.h>
 #include "hdf5unstruct.h"
+#define TIMEIO
 
 uint64_t nelems_in[2];
 uint64_t nelems_out[2];
@@ -67,6 +68,11 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
     nelems_in[1] = nelems2 ;
       
     MPI_Reduce( nelems_in, nelems_out, 2, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD );
+
+#ifdef TIMEIO
+    double createfile, prewrite, write, postwrite;   /* Timers */
+    timer_tick(&createfile, comm, 0);
+#endif
 
     if(rank==0) {
 
@@ -307,7 +313,11 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
-    /*******************/
+#ifdef TIMEIO
+    timer_tock(&createfile);
+    timer_collectprintstats(createfile, comm, 0, "CreateFile");
+    timer_tick(&prewrite, comm, 0);
+#endif
 
     /* Set up file access property list with parallel I/O access */
     if( (plist_id = H5Pcreate(H5P_FILE_ACCESS)) < 0) {
@@ -332,7 +342,14 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       printf("writehdf5 error: Could not close property list \n");
       MPI_Abort(comm, 1);
     }
-
+#ifdef TIMEIO
+    timer_tock(&prewrite);
+    timer_collectprintstats(prewrite, comm, 0, "PreWrite");
+    
+#endif
+#ifdef TIMEIO
+     timer_tick(&write, comm, 0);
+#endif
     /* Optional grid points */
     if(xpts && ypts && zpts) {
 
@@ -508,8 +525,20 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	printf("writehdf5 error: Could not close property list \n");
 
     }
+#ifdef TIMEIO
+    timer_tock(&write);
+    timer_collectprintstats(write, comm, 0, "write");
+#endif
+
+#ifdef TIMEIO
+    timer_tick(&postwrite, comm, 0);
+#endif
     if(H5Fclose(file_id) != 0)
       printf("writehdf5 error: Could not close HDF5 file \n");
+#ifdef TIMEIO
+    timer_tock(&postwrite);
+    timer_collectprintstats(postwrite, comm, 0, "PostWrite");
+#endif
 }
 
 void

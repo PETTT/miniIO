@@ -55,16 +55,16 @@ ifdef ADIOS_HOME
   LIBS += -L$(ADIOS_HOME)/lib -ladios -lmxml
 endif
 
+### if NC_DIR is set then enable NetCDF-C ###
+ifdef NC_DIR
+   LIBS += $(NC_DIR)/lib/libnetcdf.a $(NC_DIR)/lib/libhdf5_hl.a
+   INCLUDE += -I$(NC_DIR)/include
+   CFLAGS += -DHAS_NC
+endif
+
 ### if HDF5_DIR is set then enable HDF5 ###
 ifdef HDF5_DIR
   LIBS += $(HDF5_DIR)/lib/libhdf5.a -lz -ldl
   INCLUDE += -I$(HDF5_DIR)/include
   CFLAGS += -DHAS_HDF5
-endif
-
-### if NC_DIR is set then enable NetCDF-C ###
-ifdef NC_DIR
-   LIBS += $(NC_DIR)/lib/libnetcdf.a
-   INCLUDE += -I$(NC_DIR)/include
-   CFLAGS += -DHAS_NC
 endif

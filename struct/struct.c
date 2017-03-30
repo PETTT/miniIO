@@ -417,7 +417,9 @@ int main(int argc, char **argv)
       if(rank == 0) {
         printf("     Writing netCDF...\n"); fflush(stdout);
       }
-      writenc();
+      writenc(num_varnames, varnames, comm, rank, nprocs, tt,
+              is, js, ks,
+              ni, nj, nk, cni, cnj, cnk);
     }
 
 #endif

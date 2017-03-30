@@ -49,6 +49,6 @@ void writenc(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 
   err = nc_close(ncid);
 
-  printf("Finished.\n");
+  printf("Finished writenc()\n");
 
 }

@@ -13,8 +13,10 @@ static const int fnstrmax = 4095;
 
 void adiosiso_init(struct adiosisoinfo *nfo, char *method, char *name,
         MPI_Comm comm, int rank, int nprocs, int tsteps, int ni, int nj, int nk,
-        int cni, int cnj, int cnk)
+        int cni, int cnj, int cnk, char *adiosopts)
 {
+    static char emptystr[] = "";
+
     /* Set up struct, haven't decided if using all of these yet */
     nfo->name = name;
     nfo->comm = comm;
@@ -32,10 +34,12 @@ void adiosiso_init(struct adiosisoinfo *nfo, char *method, char *name,
     nfo->xvarnames = (char **) malloc(nfo->maxxvars * sizeof(char *));
     nfo->bufallocsize = 0;
 
+    if(!adiosopts)  adiosopts = emptystr;
+
     /* Set up ADIOS */
     adios_init_noxml(comm);    /* Not sure if this would conflict with adiosfull */
     adios_declare_group(&nfo->gid, nfo->name, "", adios_flag_no);
-    adios_select_method(nfo->gid, method, "", "");
+    adios_select_method(nfo->gid, method, adiosopts, "");
 
     /* Define output variables */
     adios_define_var(nfo->gid, "rank", "", adios_integer, "", "", "");

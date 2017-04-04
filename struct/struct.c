@@ -419,7 +419,8 @@ int main(int argc, char **argv)
       }
       writenc(num_varnames, varnames, comm, rank, nprocs, tt,
               is, js, ks,
-              ni, nj, nk, cni, cnj, cnk);
+              ni, nj, nk, cni, cnj, cnk,
+              data,height,ola_mask,ol_mask);
     }
 
 #endif

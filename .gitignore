@@ -28,3 +28,4 @@ struct/struct
 # Program ouput files
 **/*.h5
 **/*.xmf
+**/*.nc

@@ -17,7 +17,7 @@
 #define NC_MAX_NAME_LENGTH 4095
 #define NDIMS 3
 
-#define ERR {if(err != NC_NOERR)printf("Error at line %d: %s\n",__LINE__,nc_strerror(err)); MPI_Abort(comm,1);}
+#define ERR {if(err != NC_NOERR) {printf("Error at line %d: %s\n",__LINE__,nc_strerror(err)); fflush(stdout); MPI_Abort(comm,1);}}
 
 /*! Write structured grid via netCDF4 API.
  *
@@ -46,6 +46,7 @@ void writenc(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 
 
   char fname[NC_MAX_NAME_LENGTH +1];
+  int i = 0;
   int j = 0;
   int timedigits = 4;
   MPI_Info info = MPI_INFO_NULL;
@@ -56,36 +57,40 @@ void writenc(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
   size_t dimsm[3];
   int ncid;
   int dimids[NDIMS];
-
+  int *varids;
   snprintf(fname, NC_MAX_NAME_LENGTH, "struct_t%0*d.nc", timedigits, tstep);
 
   dimsf[0] = nk;
   dimsf[1] = nj;
   dimsf[2] = ni;
-  dimsm[0] = cnk;
+  dimsm[0] = cni;
   dimsm[1] = cnj;
-  dimsm[2] = cni;
+  dimsm[2] = cnk;
 
   /* Rank = 0, create a new dataset. */
   if(rank == 0) {
-    /* Create file */
-    printf("Rank == 0: Defining file.\n"); fflush(stdout);
-    err = nc_create_par(fname, NC_NETCDF4|NC_MPIIO, MPI_COMM_WORLD, MPI_INFO_NULL, &ncid); ERR;
-
+    varids = (int*)malloc(sizeof(int) * num_varnames);
+    /* Create file, serial fashion. */
+    err = nc_create(fname,NC_NETCDF4,&ncid);
     /*create dimensions. */
-    err = nc_def_dim(ncid,"x", NC_UNLIMITED, dimids); ERR;
-    err = nc_def_dim(ncid,"y", NC_UNLIMITED, &dimids[1]); ERR;
-    err = nc_def_dim(ncid,"z", NC_UNLIMITED, &dimids[2]); ERR;
+    err = nc_def_dim(ncid,"k", nk, &dimids[0]); ERR;
+    err = nc_def_dim(ncid,"j", nj, &dimids[1]); ERR;
+    err = nc_def_dim(ncid,"i", ni, &dimids[2]); ERR;
+
+    for(i = 0; i < num_varnames; i++) {
+      	if(strcmp(varnames[i],"data") == 0 || strcmp(varnames[i],"height") == 0) {
+          nc_def_var(ncid,varnames[i], NC_FLOAT, 3, &dimids[0], &varids[i]);
+        } else {
+          nc_def_var(ncid,varnames[i], NC_INT, 3, &dimids[0], &varids[i]);
+        }
+    }
 
     /* End definition mode & close file.*/
     err = nc_enddef(ncid); ERR;
     err = nc_close(ncid); ERR;
   }
-
+  /* Wait for everybody to get to this point,
+   * reopen file and do that thing. */
   MPI_Barrier(comm);
-  MPI_Info_create(&info);
-  MPI_Info_set(info, "striping_factor", "1");
-
-  printf("Finished writenc()\n");
 
 }

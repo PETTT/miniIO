@@ -30,15 +30,18 @@ lname2method = { "pvti": "MPI-Indiv", "pvtp": "MPI-Indiv", "POSIX": "ADIOS-POSIX
         "hdf5i": "HDF5", "hdf5p": "HDF5" }
 
 totalrate = -1.0
+totalvrate = -1.0
 a = 1
 if sys.argv[a] == "-a":   # produce average rate
     totalrate = 0.0
+    totalvrate = 0.0
     a += 1
 
 # Iter over all files
 for fname in sys.argv[a:]:
     v = []
     if totalrate > 0.0: totalrate = 0.0
+    if totalvrate > 0.0: totalvrate = 0.0
 
     # Determine type and method from file name, if it's there
     otype1key = next((x for x in name2otype.keys() if x in fname), False)
@@ -126,19 +129,22 @@ for fname in sys.argv[a:]:
                 v.append([method, cores, size, fullgb, fulltime, rate])
             elif otype == "Iso":
                 vtime = isoctime+isotime  #equivlent time if iso+isoout replaces full output
+                vrate = fullgb/vtime
                 rate = isogb/isotime
                 if totalrate >= 0.0: totalrate += rate
-                v.append([method, cores, size, fullgb, vtime, fullgb/vtime, phases[phase],
+                if totalvrate >= 0.0: totalvrate += vrate
+                v.append([method, cores, size, fullgb, vtime, vrate, phases[phase],
                           limb, limb/cores, tris, isogb, isotime, rate])
 
     if otype == "Full":
         print "%-16s %5s %15s %5s %5s %5s" % ("method", "cores", "size", "f_GB", "ftime", "fGB/s")
         for i in v:
             print "%-16s %5d %15s %5.0f %5.2f %5.2f" % tuple(i)
+        if totalrate >= 0.0: print "Avg rate =", totalrate/len(v)
     elif otype == "Iso":
         print "%-16s %5s %15s %5s %5s %6s %11s %8s %5s %11s %7s %4s %6s" % ("method", "cores", "size", "f_GB",
             "vtime", "vGB/s", "phase", "loadimb", "limb%", "tris", "i_GB", "itim", "i_GB/s")
         for i in v:
             print "%-16s %5d %15s %5.0f %5.2f %6.2f %11s %8.2f %5.3f %11.0f %7.3f %4.2f %6.3f" % tuple(i)
-    if totalrate >= 0.0: print "Avg rate =", totalrate/len(v)
+        if totalrate >= 0.0: print "Avg vrate =", totalvrate/len(v), ", rate =", totalrate/len(v)
     

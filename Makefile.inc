@@ -1,11 +1,16 @@
 
 # MPI Compiler wrappers preferred; just compilers otherwise
 
-HOSTNAME := $(shell hostname -d)
-
+HOSTNAME := $(shell hostname)
 ifeq ($(findstring .mil,$(HOSTNAME)),.mil)
-  CC = cc
-  FC = ftn
+  ifeq ($(findstring topaz,$(HOSTNAME)),topaz)
+   CC = icc
+   FC = ifort
+   LIBS = -lmpi
+  else
+   CC = cc
+   FC = ftn
+  endif
 else
   CC ?= mpicc
   CXX ?= mpicxx

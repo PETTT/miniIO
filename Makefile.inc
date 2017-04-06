@@ -29,7 +29,7 @@ CFLAGS =
 CXXFLAGS = 
 FCFLAGS =
 LDFLAGS = 
-LIBS = -lm
+LIBS += -lm
 
 # You should probably leave the rest below alone
 

@@ -112,7 +112,7 @@ void print_usage(int rank, const char *errstr)
                     "    --hdf5i_chunk CI CJ CK : Chunk Size (CI,CJ,CK); full output.\n"
                     "      valid values are CI <= NI, CJ <= NJ, CK <= NK\n"
                     "    --hdf5p_chunk CI : Integer percentage of triangles (CI); isosurface output.\n"
-                    "      valid values are 0 < CI <= 100 \n"
+                    "      valid values are 2 <= CI <= 100 \n"
                     "    --hdf5_compress : enable compression \n"
     );
 #endif
@@ -321,9 +321,9 @@ int main(int argc, char **argv)
         }
         else if(!strcasecmp(argv[a], "--hdf5i_chunk")) {
             hdf5i_chunk = malloc(3 * sizeof(hsize_t));
-            hdf5i_chunk[0] = (hsize_t)strtoul(argv[++a], NULL, 0);
-            hdf5i_chunk[1] = (hsize_t)strtoul(argv[++a], NULL, 0);
             hdf5i_chunk[2] = (hsize_t)strtoul(argv[++a], NULL, 0);
+            hdf5i_chunk[1] = (hsize_t)strtoul(argv[++a], NULL, 0);
+            hdf5i_chunk[0] = (hsize_t)strtoul(argv[++a], NULL, 0);
         }
         else if(!strcasecmp(argv[a], "--hdf5p_chunk")) {
             hdf5p_chunk = malloc(1 * sizeof(hsize_t));

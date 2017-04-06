@@ -40,8 +40,6 @@ void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     snprintf(fname, fnstrmax, "cart.%s_t%0*d.h5", varname, timedigits, tstep);
     snprintf(fname_xdmf, fnstrmax, "cart.%s_t%0*d.xmf", varname, timedigits, tstep);
 
-
-
     /* Create pvti file */
     if(rank == 0) {
 
@@ -51,9 +49,9 @@ void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
       }
 
       /* Create dataset */
-      dims[0] = (hsize_t)ni;
+      dims[0] = (hsize_t)nk;
       dims[1] = (hsize_t)nj;
-      dims[2] = (hsize_t)nk;
+      dims[2] = (hsize_t)ni;
       filespace = H5Screate_simple(3, dims, NULL);
       
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
@@ -65,18 +63,18 @@ void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 	  MPI_Abort(comm, 1);
 	}
 	H5Pset_chunk(chunk_pid, 3, h5_chunk);
-      }
 
-      if(hdf5_compress == 1) {
+	if(hdf5_compress == 1) {
 
-	/* Set ZLIB / DEFLATE Compression using compression level 6. */
-	H5Pset_deflate (chunk_pid, 6);
-
-	/* Uncomment these lines to set SZIP Compression
-	   szip_options_mask = H5_SZIP_NN_OPTION_MASK;
-	   szip_pixels_per_block = 16;
-	   status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
-	*/
+	  /* Set ZLIB / DEFLATE Compression using compression level 6. */
+	  H5Pset_deflate (chunk_pid, 6);
+	  
+	  /* Uncomment these lines to set SZIP Compression
+	     szip_options_mask = H5_SZIP_NN_OPTION_MASK;
+	     szip_pixels_per_block = 16;
+	     status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
+	  */
+	}
       }
 
       /* Create the dataset with default properties and close filespace. */

@@ -59,15 +59,17 @@ void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
       if(h5_chunk) {
 	H5Pset_layout(chunk_pid, H5D_CHUNKED);
 	if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0 ) {
-	  printf("writehdf5 error: Could not set fill time\n");
+	  printf("writehdf5i error: Could not set fill time\n");
 	  MPI_Abort(comm, 1);
 	}
 	H5Pset_chunk(chunk_pid, 3, h5_chunk);
 
 	if(hdf5_compress == 1) {
-
 	  /* Set ZLIB / DEFLATE Compression using compression level 6. */
-	  H5Pset_deflate (chunk_pid, 6);
+	  if( H5Pset_deflate (chunk_pid, 6) < 0 ) {
+	    printf("writehdf5i error: Could not set compression\n");
+	    MPI_Abort(comm, 1);
+	  }
 	  
 	  /* Uncomment these lines to set SZIP Compression
 	     szip_options_mask = H5_SZIP_NN_OPTION_MASK;

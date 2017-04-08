@@ -22,8 +22,15 @@ lname2method = { "przm": "MPI-Indiv", "POSIX": "ADIOS-POSIX",
         "hdf5": "HDF5" }
 
 v = []
+totalrate = -1.0
+a = 1
+if sys.argv[a] == "-a":   # produce average rate
+    totalrate = 0.0
+    a += 1
 
-for fname in sys.argv[1:]:
+for fname in sys.argv[a:]:
+    if totalrate > 0.0: totalrate = 0.0
+
     # Determine method from file name, if it's there
     method1key = next((x for x in fname2method.keys() if x in fname), False)
     if not method1key: print "WARNING: method not specified in filename"
@@ -64,9 +71,12 @@ for fname in sys.argv[1:]:
             sizegb = float(ls[10]) / 1024**3
         elif ls[0] == "Output":
             outtime = float(ls[11][:-1])
-            v.append([method, cores, pointsM, sizegb, outtime, sizegb/outtime])
+            rate = sizegb/outtime
+            if totalrate >= 0.0: totalrate += rate
+            v.append([method, cores, pointsM, sizegb, outtime, rate])
 
 print "%-16s %5s %8s %7s %6s %6s" % ("method", "cores", "points*M", "f_GB", "ftime", "fGB/s")
 for i in v:
     print "%-16s %5d %8s %7.1f %6.2f %6.2f" % tuple(i)
+if totalrate >= 0.0: print "Avg rate =", totalrate/len(v)
 

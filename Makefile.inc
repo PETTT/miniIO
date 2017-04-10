@@ -1,5 +1,6 @@
 
 # MPI Compiler wrappers preferred; just compilers otherwise
+LIBS =
 
 HOSTNAME := $(shell hostname)
 ifeq ($(findstring .mil,$(HOSTNAME)),.mil)

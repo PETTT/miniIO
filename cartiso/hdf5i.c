@@ -127,13 +127,22 @@ void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     count[1] = (hsize_t)ncj;
     count[2] = (hsize_t)nci;
 
-    memspace = H5Screate_simple(3, count, NULL);
+    if( (memspace = H5Screate_simple(3, count, NULL)) < 0) {
+      printf("writehdf5i error: Could not create memory space \n");
+      MPI_Abort(comm, 1);
+    };
 
-    did = H5Dopen(file_id, varname, H5P_DEFAULT);
+    if( (did = H5Dopen(file_id, varname, H5P_DEFAULT)) < 0) {
+      printf("writehdf5i error: Could not open data space \n");
+      MPI_Abort(comm, 1);
+    };
       
     /* Select hyperslab in the file.*/
     filespace = H5Dget_space(did);
-    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL );
+    if( H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL ) < 0) {
+      printf("writehdf5i error: Could not select hyperslab \n");
+      MPI_Abort(comm, 1);
+    };
 
     /* Create property list for collective dataset write. */
     plist_id = H5Pcreate(H5P_DATASET_XFER);

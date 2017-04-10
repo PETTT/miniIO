@@ -1,22 +1,30 @@
 #!/usr/bin/env python
 
-# Process an output log from cartiso and produce a results table
-#   + Determines output type (full or iso) and method from log contents
-#   + Can also check filename for type & method
-#     - Filename must contain .pvti., .pvtp., .posix., .mpi., etc (see fname2method)
-#     - If filename & log contents don't agree, will abort with error
-#     - If you didn't name file properly (or at all), just gives a warning
-#   + Each column is a time step
-#   + Table rows(Full): method, cores, grid size, full file size, time, rate (GB/s)
-#   + Table rows(Iso): method, cores, grid size, full file size, virtual time, virtual rate
-#                      iso phase, load imbalance, imbalance %, triangles, iso size, 
-#                      iso time, iso rate
-#     - "virtual" time is iso computation time + iso output time
-#   + Multiple methods/types can be pasted into Excel or similar for plotting/analysis
-#   + Give -a option to compute an average rate at the end
+"""
+Process an output log from cartiso and produce a results table
+  + Determines output type (full or iso) and method from log contents
+  + Can also check filename for type & method
+    - Filename must contain .pvti., .pvtp., .posix., .mpi., etc (see fname2method)
+    - If filename & log contents don't agree, will abort with error
+    - If you didn't name file properly (or at all), just gives a warning
+  + Each column is a time step
+  + Table rows(Full): method, cores, grid size, full file size, time, rate (GB/s)
+  + Table rows(Iso): method, cores, grid size, full file size, virtual time, virtual rate
+                     iso phase, load imbalance, imbalance %, triangles, iso size, 
+                     iso time, iso rate
+    - "virtual" time is iso computation time + iso output time
+  + Multiple methods/types can be pasted into Excel or similar for plotting/analysis
+  + Give -a option to compute an average rate at the end
+  + Options:
+      -a => print average rate(s) after each file
+      -n => don't print the column headings (good for auto-copy-paste to excel)
+"""
 
 import sys
 import re
+
+if len(sys.argv) <= 1:
+    print __doc__
 
 phases = ["sin2gauss", "gaussmove", "gaussresize", "gaussmove_r"]
 name2otype = { "pvti": "Full", "pvtp": "Iso", "adiosfull": "Full", "adiosiso": "Iso",
@@ -31,11 +39,16 @@ lname2method = { "pvti": "MPI-Indiv", "pvtp": "MPI-Indiv", "POSIX": "ADIOS-POSIX
 
 totalrate = -1.0
 totalvrate = -1.0
+header = True
 a = 1
-if sys.argv[a] == "-a":   # produce average rate
-    totalrate = 0.0
-    totalvrate = 0.0
-    a += 1
+for arg in sys.argv[1:3]:
+    if arg == "-a":   # produce average rate
+        totalrate = 0.0
+        totalvrate = 0.0
+        a += 1
+    if arg == "-n":   # no header
+        header = False
+        a += 1
 
 # Iter over all files
 for fname in sys.argv[a:]:
@@ -137,13 +150,13 @@ for fname in sys.argv[a:]:
                           limb, limb/cores, tris, isogb, isotime, rate])
 
     if otype == "Full":
-        print "%-16s %5s %15s %5s %5s %5s" % ("method", "cores", "size", "f_GB", "ftime", "fGB/s")
+        if header: print "%-16s %5s %15s %5s %5s %5s" % ("method", "cores", "size", "f_GB", "ftime", "fGB/s")
         for i in v:
             print "%-16s %5d %15s %5.0f %5.2f %5.2f" % tuple(i)
         if totalrate >= 0.0: print "Avg rate =", totalrate/len(v)
     elif otype == "Iso":
-        print "%-16s %5s %15s %5s %5s %6s %11s %8s %5s %11s %7s %4s %6s" % ("method", "cores", "size", "f_GB",
-            "vtime", "vGB/s", "phase", "loadimb", "limb%", "tris", "i_GB", "itim", "i_GB/s")
+        if header: print "%-16s %5s %15s %5s %5s %6s %11s %8s %5s %11s %7s %4s %6s" % ("method", "cores", 
+            "size", "f_GB", "vtime", "vGB/s", "phase", "loadimb", "limb%", "tris", "i_GB", "itim", "i_GB/s")
         for i in v:
             print "%-16s %5d %15s %5.0f %5.2f %6.2f %11s %8.2f %5.3f %11.0f %7.3f %4.2f %6.3f" % tuple(i)
         if totalrate >= 0.0: print "Avg vrate =", totalvrate/len(v), ", rate =", totalrate/len(v)

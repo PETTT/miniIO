@@ -99,7 +99,7 @@ void writenc(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 
     err = nc_inq_varids(ncid,&loc_numvars,&varids[0]); ERR;
 
-    printf("loc_numvars: %d\n",loc_numvars); fflush(stdout);
+    //printf("loc_numvars: %d\n",loc_numvars); fflush(stdout);
     for(i = 0; i < loc_numvars; i++) {
       err = nc_var_par_access(ncid,varids[i],NC_COLLECTIVE); ERR;
     }
@@ -110,12 +110,11 @@ void writenc(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     count[0] = (hsize_t)cnk;
     count[1] = (hsize_t)cnj;
     count[2] = (hsize_t)cni;
-    printf("start (rank,start[0-2]):  %d %zd %zd %zd\n",rank,start[0],start[1],start[2]);
-    printf("count (rank,start[0-2]):  %d %zd %zd %zd\n",rank,count[0],count[1],count[2]);
+    //printf("start (rank,start[0-2]):  %d %zd %zd %zd\n",rank,start[0],start[1],start[2]);
+    //printf("count (rank,start[0-2]):  %d %zd %zd %zd\n",rank,count[0],count[1],count[2]);
     /* Write out the data for each variable. */
     //if(rank == 0)
     for(i = 0; i < num_varnames; i++) {
-      printf("varnames[%d]: %s\n",i,varnames[i]); fflush(stdout);
       if(strcmp(varnames[i],"data") == 0) {
         err = nc_put_vara_float(ncid,varids[i],start,count,data); ERR;
       } else if(strcmp(varnames[i],"height") == 0) {

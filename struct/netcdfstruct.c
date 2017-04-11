@@ -75,10 +75,8 @@ void writenc(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
   dimsm[2] = (hsize_t)cnk;
 
   /* Rank = 0, create a new dataset. */
-  if(rank == 0) {
-    /* Create file, serial fashion. */
-    err = nc_create(fname,NC_NETCDF4,&ncid);
-    /*create dimensions. */
+  err = nc_create_par(fname,NC_NETCDF4|NC_MPIIO,comm,info,&ncid);
+  /*create dimensions. */
     err = nc_def_dim(ncid,"k", nk, &dimids[0]); ERR;
     err = nc_def_dim(ncid,"j", nj, &dimids[1]); ERR;
     err = nc_def_dim(ncid,"i", ni, &dimids[2]); ERR;
@@ -93,51 +91,48 @@ void writenc(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 
     /* End definition mode & close file.*/
     err = nc_enddef(ncid); ERR;
-    err = nc_close(ncid); ERR;
-  }
-  /* Wait for everybody to get to this point,
-   * reopen file and do that thing. */
-  MPI_Barrier(comm);
-
-  MPI_Info_create(&info);
-
-  err = nc_open_par(fname,NC_MPIIO,comm,info,&ncid); ERR;
-  err = nc_inq_varids(ncid,&loc_numvars,&varids[0]); ERR;
-
-  printf("loc_numvars: %d\n",loc_numvars); fflush(stdout);
-  for(i = 0; i < loc_numvars; i++) {
-     err = nc_var_par_access(ncid,varids[i],NC_COLLECTIVE); ERR;
-  }
-
-  start[0] = (hsize_t)ks;
-  start[1] = (hsize_t)js;
-  start[2] = (hsize_t)is;
-  count[0] = (hsize_t)cnk;
-  count[1] = (hsize_t)cnj;
-  count[2] = (hsize_t)cni;
-  printf("start (rank,start[0-2]):  %d %zd %zd %zd\n",rank,start[0],start[1],start[2]);
-  printf("count (rank,start[0-2]):  %d %zd %zd %zd\n",rank,count[0],count[1],count[2]);
-  /* Write out the data for each variable. */
-  //if(rank == 0)
-  for(i = 0; i < num_varnames; i++) {
-    printf("varnames[%d]: %s\n",i,varnames[i]); fflush(stdout);
-    if(strcmp(varnames[i],"data") == 0) {
-      err = nc_put_vara_float(ncid,varids[i],start,count,data); ERR;
-    } else if(strcmp(varnames[i],"height") == 0) {
-      err = nc_put_vara_float(ncid,varids[i],start,count,height); ERR;
-    } else if(strcmp(varnames[i],"ola_mask") == 0) {
-      err = nc_put_vara_int(ncid,varids[i],start,count,ola_mask); ERR;
-    } else if (strcmp(varnames[i],"ol_mask") == 0) {
-      err = nc_put_vara_int(ncid,varids[i],start,count,ol_mask); ERR;
-    } else {
-      printf("writenc error: Unknown variable %s\n",varnames[i]);
-      MPI_Abort(comm,1);
-    }
+    /* Wait for everybody to get to this point,
+     * reopen file and do that thing. */
     MPI_Barrier(comm);
-  } /* End loop to write variables. */
 
-  MPI_Barrier(comm);
-  /* Close out, lets go home. */
-  err = nc_close(ncid); ERR;
+    MPI_Info_create(&info);
+
+    err = nc_inq_varids(ncid,&loc_numvars,&varids[0]); ERR;
+
+    printf("loc_numvars: %d\n",loc_numvars); fflush(stdout);
+    for(i = 0; i < loc_numvars; i++) {
+      err = nc_var_par_access(ncid,varids[i],NC_COLLECTIVE); ERR;
+    }
+
+    start[0] = (hsize_t)ks;
+    start[1] = (hsize_t)js;
+    start[2] = (hsize_t)is;
+    count[0] = (hsize_t)cnk;
+    count[1] = (hsize_t)cnj;
+    count[2] = (hsize_t)cni;
+    printf("start (rank,start[0-2]):  %d %zd %zd %zd\n",rank,start[0],start[1],start[2]);
+    printf("count (rank,start[0-2]):  %d %zd %zd %zd\n",rank,count[0],count[1],count[2]);
+    /* Write out the data for each variable. */
+    //if(rank == 0)
+    for(i = 0; i < num_varnames; i++) {
+      printf("varnames[%d]: %s\n",i,varnames[i]); fflush(stdout);
+      if(strcmp(varnames[i],"data") == 0) {
+        err = nc_put_vara_float(ncid,varids[i],start,count,data); ERR;
+      } else if(strcmp(varnames[i],"height") == 0) {
+        err = nc_put_vara_float(ncid,varids[i],start,count,height); ERR;
+      } else if(strcmp(varnames[i],"ola_mask") == 0) {
+        err = nc_put_vara_int(ncid,varids[i],start,count,ola_mask); ERR;
+      } else if (strcmp(varnames[i],"ol_mask") == 0) {
+        err = nc_put_vara_int(ncid,varids[i],start,count,ol_mask); ERR;
+      } else {
+        printf("writenc error: Unknown variable %s\n",varnames[i]);
+        MPI_Abort(comm,1);
+      }
+      MPI_Barrier(comm);
+    } /* End loop to write variables. */
+
+    MPI_Barrier(comm);
+    /* Close out, lets go home. */
+    err = nc_close(ncid); ERR;
 
 }

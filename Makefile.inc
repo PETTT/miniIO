@@ -13,8 +13,8 @@ else
 endif
 
 # Optimization and debugging flags, (un)comment as desired
-OPT = -O3
-DBG = -g
+OPT = -O0
+DBG = -ggdb -g3
 
 # Add HDF5 library, set to install directory
 # ** set via the HDF5_DIR environment variable **

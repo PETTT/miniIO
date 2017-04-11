@@ -100,7 +100,6 @@ void writenc(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
   MPI_Barrier(comm);
 
   MPI_Info_create(&info);
-  MPI_Info_set(info, "striping_factor", "1");
 
   err = nc_open_par(fname,NC_MPIIO,comm,info,&ncid); ERR;
   err = nc_inq_varids(ncid,&loc_numvars,&varids[0]); ERR;

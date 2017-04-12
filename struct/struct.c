@@ -84,9 +84,12 @@ int main(int argc, char **argv)
   uint64_t cnpoints=0;
   uint64_t npoints=0;
 
+#ifdef HAS_NC
+    int ncout = 0;
+#endif
+
 #ifdef HAS_HDF5
   int hdf5out = 0;
-  int ncout = 0;
   hsize_t *hdf5_chunk=NULL;
   int hdf5_compress = 0;
 #endif

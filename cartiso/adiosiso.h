@@ -26,7 +26,7 @@ struct adiosisoinfo {
 
 void adiosiso_init(struct adiosisoinfo *nfo, char *method, char *name,
         MPI_Comm comm, int rank, int nprocs, int tsteps, int ni, int nj, int nk,
-        int cni, int cnj, int cnk);
+        int cni, int cnj, int cnk, char *adiosopts);
 
 void adiosiso_addxvar(struct adiosisoinfo *nfo, char *varname);
 

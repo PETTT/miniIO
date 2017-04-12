@@ -40,8 +40,6 @@ void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     snprintf(fname, fnstrmax, "cart.%s_t%0*d.h5", varname, timedigits, tstep);
     snprintf(fname_xdmf, fnstrmax, "cart.%s_t%0*d.xmf", varname, timedigits, tstep);
 
-
-
     /* Create pvti file */
     if(rank == 0) {
 
@@ -51,28 +49,34 @@ void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
       }
 
       /* Create dataset */
-      dims[0] = (hsize_t)ni;
+      dims[0] = (hsize_t)nk;
       dims[1] = (hsize_t)nj;
-      dims[2] = (hsize_t)nk;
+      dims[2] = (hsize_t)ni;
       filespace = H5Screate_simple(3, dims, NULL);
       
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
 
       if(h5_chunk) {
 	H5Pset_layout(chunk_pid, H5D_CHUNKED);
+	if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0 ) {
+	  printf("writehdf5i error: Could not set fill time\n");
+	  MPI_Abort(comm, 1);
+	}
 	H5Pset_chunk(chunk_pid, 3, h5_chunk);
-      }
 
-      if(hdf5_compress == 1) {
-
-	/* Set ZLIB / DEFLATE Compression using compression level 6. */
-	H5Pset_deflate (chunk_pid, 6);
-
-	/* Uncomment these lines to set SZIP Compression
-	   szip_options_mask = H5_SZIP_NN_OPTION_MASK;
-	   szip_pixels_per_block = 16;
-	   status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
-	*/
+	if(hdf5_compress == 1) {
+	  /* Set ZLIB / DEFLATE Compression using compression level 6. */
+	  if( H5Pset_deflate (chunk_pid, 6) < 0 ) {
+	    printf("writehdf5i error: Could not set compression\n");
+	    MPI_Abort(comm, 1);
+	  }
+	  
+	  /* Uncomment these lines to set SZIP Compression
+	     szip_options_mask = H5_SZIP_NN_OPTION_MASK;
+	     szip_pixels_per_block = 16;
+	     status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
+	  */
+	}
       }
 
       /* Create the dataset with default properties and close filespace. */
@@ -123,13 +127,22 @@ void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     count[1] = (hsize_t)ncj;
     count[2] = (hsize_t)nci;
 
-    memspace = H5Screate_simple(3, count, NULL);
+    if( (memspace = H5Screate_simple(3, count, NULL)) < 0) {
+      printf("writehdf5i error: Could not create memory space \n");
+      MPI_Abort(comm, 1);
+    };
 
-    did = H5Dopen(file_id, varname, H5P_DEFAULT);
+    if( (did = H5Dopen(file_id, varname, H5P_DEFAULT)) < 0) {
+      printf("writehdf5i error: Could not open data space \n");
+      MPI_Abort(comm, 1);
+    };
       
     /* Select hyperslab in the file.*/
     filespace = H5Dget_space(did);
-    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL );
+    if( H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL ) < 0) {
+      printf("writehdf5i error: Could not select hyperslab \n");
+      MPI_Abort(comm, 1);
+    };
 
     /* Create property list for collective dataset write. */
     plist_id = H5Pcreate(H5P_DATASET_XFER);

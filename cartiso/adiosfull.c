@@ -14,9 +14,10 @@ static const int fnstrmax = 4095;
 void adiosfull_init(struct adiosfullinfo *nfo, char *method,
                char *name, MPI_Comm comm, int rank, int nprocs,
                int tsteps, int ni, int nj, int nk, int is, int cni, int js, int cnj,
-               int ks, int cnk, float deltax, float deltay, float deltaz)
+               int ks, int cnk, float deltax, float deltay, float deltaz, char *adiosopts)
 {
     char dirname[fnstrmax+1];
+    static char emptystr[] = "";
 
     /* Make directory for output collection, all timesteps */
     /*snprintf(dirname, fnstrmax, "%s_adios.d/", name);
@@ -45,12 +46,14 @@ void adiosfull_init(struct adiosfullinfo *nfo, char *method,
     nfo->varnames = (char **) malloc(nfo->maxvars * sizeof(char *));
     nfo->datas = (float **) malloc(nfo->maxvars * sizeof(float *));
     nfo->bufallocsize = 0;
+
+    if(!adiosopts)  adiosopts = emptystr;
     
     /* Set up ADIOS */ 
     adios_init_noxml(comm);
     adios_declare_group(&nfo->gid, nfo->name, "", adios_flag_no);
     /*chkdir1task(dirname, comm);*/
-    adios_select_method(nfo->gid, method, "", /*dirname*/"");
+    adios_select_method(nfo->gid, method, adiosopts, /*dirname*/"");
 
     /* Define output variables */
     adios_define_var(nfo->gid, "rank", "", adios_integer, "", "", "");

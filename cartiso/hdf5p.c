@@ -52,13 +52,14 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 
     MPI_Allgather(&ntris, 1, MPI_UNSIGNED_LONG_LONG, rntris, 1, MPI_LONG_LONG, comm);
 
+    uint64_t i;
+   
     tot_tris=0;
+    for (i=0; i<nprocs; i++) {
+      tot_tris = tot_tris + rntris[i];
+    }
+
     if(rank == 0) {
-      uint64_t i;
-      for (i=0; i<nprocs; i++)
-	{
-	  tot_tris = tot_tris + rntris[i];
-	}
 
       if( (file_id = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT)) < 0) {
 	fprintf(stderr, "writehdf5p error: could not create %s \n", fname);
@@ -66,6 +67,7 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
       }
 
       dims[0] = 9*(hsize_t)tot_tris;
+
       filespace = H5Screate_simple(1, dims, NULL);
 
       /* Create Grid Group */
@@ -73,24 +75,28 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
       
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
 
-      if(h5_chunk) {
+      if(h5_chunk && tot_tris != 0) {
 
 	H5Pset_layout(chunk_pid, H5D_CHUNKED);
 
-	hsize_t chunk = (dims[0] * h5_chunk[0])/100;
+	if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0 ) {
+	  printf("writehdf5 error: Could not set fill time\n");
+	  MPI_Abort(comm, 1);
+	}
+	hsize_t chunk = dims[0]*(h5_chunk[0]/100.);
 	H5Pset_chunk(chunk_pid, 1, &chunk);
-      }
 
-      if(hdf5_compress == 1) {
+	if(hdf5_compress == 1) {
 
-	/* Set ZLIB / DEFLATE Compression using compression level 6. */
-	H5Pset_deflate (chunk_pid, 6);
-
-	/* Uncomment these lines to set SZIP Compression
-	   szip_options_mask = H5_SZIP_NN_OPTION_MASK;
-	   szip_pixels_per_block = 16;
-	   status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
-	*/
+	  /* Set ZLIB / DEFLATE Compression using compression level 6. */
+	  H5Pset_deflate (chunk_pid, 6);
+	  
+	  /* Uncomment these lines to set SZIP Compression
+	     szip_options_mask = H5_SZIP_NN_OPTION_MASK;
+	     szip_pixels_per_block = 16;
+	     status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
+	  */
+	}
       }
       /* Create the dataset with default properties */
       did = H5Dcreate(group_id, "xyz", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
@@ -110,20 +116,54 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
       dims[0] = 3*(hsize_t)tot_tris;
       filespace = H5Screate_simple(1, dims, NULL);
 
+      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
+
+      if(h5_chunk && tot_tris != 0) {
+
+	H5Pset_layout(chunk_pid, H5D_CHUNKED);
+
+	if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0 ) {
+	  printf("writehdf5 error: Could not set fill time\n");
+	  MPI_Abort(comm, 1);
+	}
+	hsize_t chunk = dims[0]*(h5_chunk[0]/100.);
+	H5Pset_chunk(chunk_pid, 1, &chunk);
+
+	if(hdf5_compress == 1) {
+
+	  /* Set ZLIB / DEFLATE Compression using compression level 6. */
+	  H5Pset_deflate (chunk_pid, 6);
+	  
+	  /* Uncomment these lines to set SZIP Compression
+	     szip_options_mask = H5_SZIP_NN_OPTION_MASK;
+	     szip_pixels_per_block = 16;
+	     status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
+	  */
+	}
+      }
+
       /* Create the dataset with default properties and close filespace. */
-      did = H5Dcreate(file_id, "conn", H5T_NATIVE_ULLONG, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      did = H5Dcreate(file_id, "conn", H5T_NATIVE_ULLONG, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
       H5Dclose(did);
 
       if(xvals) {
-	did = H5Dcreate(file_id, xname, H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+	did = H5Dcreate(file_id, xname, H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
 	H5Dclose(did);
-      }
+      }   
+      if(h5_chunk)
+	H5Pclose(chunk_pid);
       H5Sclose(filespace);
       H5Fclose(file_id);
+
+      /* Create xdmf file for timestep */
+      write_xdmf_xml(fname, fname_xdmf, tot_tris, xname);
     }
     
     MPI_Barrier(comm);
 
+    if(tot_tris == 0)
+      return;
+    
     /* Set up MPI info */
     MPI_Info_create(&info);
     MPI_Info_set(info, "striping_factor", "1");
@@ -153,6 +193,7 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 
     group_id = H5Gopen(file_id, "grid points", H5P_DEFAULT);
     did = H5Dopen(group_id, "xyz",H5P_DEFAULT);
+    
     /* 
      * Each process defines dataset in memory and writes it to the hyperslab
      * in the file.
@@ -164,9 +205,11 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     }
 
     count[0] = (hsize_t)ntris*9;
-      
+
     memspace = H5Screate_simple(1, count, NULL);
-      
+    if(count[0] == 0)
+      H5Sselect_none(memspace);
+
     /* Select hyperslab in the file.*/
     filespace = H5Dget_space(did);
     H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL );
@@ -192,6 +235,7 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     for (j=0; j<rank; j++) {
       start[0] = start[0] + 9*rntris[j];
     }
+
 
     count[0] = (hsize_t)ntris*9;
       
@@ -258,11 +302,6 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     free(rntris);
     if(H5Fclose(file_id) != 0)
       printf("writehdf5p error: Could not close HDF5 file \n");
-
-    /* Create xdmf file for timestep */
-    if(rank == 0) {
-      write_xdmf_xml(fname, fname_xdmf, tot_tris, xname);
-    }
     
 }
 

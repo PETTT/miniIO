@@ -13,6 +13,8 @@
 #include "hdf5.h"
 #include "hdf5struct.h"
 
+#define TIMEIO
+
 static const int fnstrmax = 4095;
 
 void
@@ -43,6 +45,7 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     int j;
     herr_t err;
     hid_t chunk_pid;
+    hsize_t chunk[3];
     
     snprintf(fname, fnstrmax, "struct_t%0*d.h5", timedigits, tstep);
     snprintf(fname_xdmf, fnstrmax, "struct_t%0*d.xmf", timedigits, tstep);
@@ -53,6 +56,11 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     dimsm[0] = cnk;
     dimsm[1] = cnj;
     dimsm[2] = cni;
+
+#ifdef TIMEIO
+    double createfile, prewrite, write, postwrite;   /* Timers */
+    timer_tick(&createfile, comm, 0);
+#endif
 
     if(rank == 0) {
 
@@ -66,20 +74,27 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
       if(h5_chunk) {
 	H5Pset_layout(chunk_pid, H5D_CHUNKED);
-	h5_chunk[2]=dimsm[2];
-	H5Pset_chunk(chunk_pid, 3, h5_chunk);
-      }
+	if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0 ) {
+	  printf("writehdf5 error: Could not set fill time\n");
+	  MPI_Abort(comm, 1);
+	}
+	chunk[0]=dimsm[0]/h5_chunk[1];
+	chunk[1]=dimsm[1]/h5_chunk[0];
+	chunk[2]=dimsm[2];
+	
+	H5Pset_chunk(chunk_pid, 3, chunk);
 
-      if(hdf5_compress == 1) {
-
-	/* Set ZLIB / DEFLATE Compression using compression level 6. */
-	H5Pset_deflate (chunk_pid, 6);
-
-	/* Uncomment these lines to set SZIP Compression
-	   szip_options_mask = H5_SZIP_NN_OPTION_MASK;
-	   szip_pixels_per_block = 16;
-	   status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
-	*/
+	if(hdf5_compress == 1) {
+	  
+	  /* Set ZLIB / DEFLATE Compression using compression level 6. */
+	  H5Pset_deflate (chunk_pid, 6);
+	  
+	  /* Uncomment these lines to set SZIP Compression
+	     szip_options_mask = H5_SZIP_NN_OPTION_MASK;
+	     szip_pixels_per_block = 16;
+	     status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
+	  */
+	}
       }
 
       /* Create the dataset with default properties */
@@ -103,9 +118,18 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
       }
       /* Close the file */
       H5Fclose(file_id);
+
+      /* Create xdmf file for timestep */
+      write_xdmf_xml(fname, fname_xdmf, num_varnames, varnames, ni, nj, nk, deltax, deltay, deltaz);
+
     }
     
     MPI_Barrier(comm);
+#ifdef TIMEIO
+    timer_tock(&createfile);
+    timer_collectprintstats(createfile, comm, 0, "CreateFile");
+    timer_tick(&prewrite, comm, 0);
+#endif
 
     /* Set up MPI info */
     MPI_Info_create(&info);
@@ -123,6 +147,9 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
       printf("writehdf5p error: Could not create property list \n");
       MPI_Abort(comm, 1);
     }
+
+    H5Pset_all_coll_metadata_ops(plist_id, 1);
+    H5Pset_coll_metadata_write(plist_id, 1);
 
     if( (file_id = H5Fopen(fname, H5F_ACC_RDWR, plist_id)) < 0) {
       fprintf(stderr, "writehdf5p error: could not open %s \n", fname);
@@ -151,7 +178,6 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
       count[0] = (hsize_t)(cnk);
       count[1] = (hsize_t)(cnj);
       count[2] = (hsize_t)(cni);
-      printf("start %d %d %d %d \n",rank,start[0],start[1],start[2]);
     }
 
     memspace = H5Screate_simple(3, dimsm, NULL);
@@ -159,9 +185,15 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     /* Create property list for collective dataset write. */
     plist_id = H5Pcreate(H5P_DATASET_XFER);
     H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-
+#ifdef TIMEIO
+    timer_tock(&prewrite);
+    timer_collectprintstats(prewrite, comm, 0, "PreWrite");
+    
+#endif
     for (j=0; j<num_varnames; j++) {
-
+#ifdef TIMEIO
+     timer_tick(&write, comm, 0);
+#endif
       did = H5Dopen(file_id, varnames[j],H5P_DEFAULT);
 
       /* 
@@ -191,10 +223,16 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 	fprintf(stderr, "writehdf5 error: could not write datset %s \n", varnames[j]);
 	MPI_Abort(comm, 1);
       }
-
       err = H5Dclose(did);
-    }
 
+#ifdef TIMEIO
+    timer_tock(&write);
+    timer_collectprintstats(write, comm, 0, varnames[j]);
+#endif
+    }
+#ifdef TIMEIO
+    timer_tick(&postwrite, comm, 0);
+#endif
     if(H5Sclose(memspace)  != 0)
       printf("writehdf5 error: Could not close memory space \n");
 
@@ -207,11 +245,10 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 
     if(H5Fclose(file_id) != 0)
       printf("writehdf5 error: Could not close HDF5 file \n");
-
-      /* Create xdmf file for timestep */
-    if(rank == 0) {
-      write_xdmf_xml(fname, fname_xdmf, num_varnames, varnames, ni, nj, nk, deltax, deltay, deltaz);
-    }
+#ifdef TIMEIO
+    timer_tock(&postwrite);
+    timer_collectprintstats(postwrite, comm, 0, "PostWrite");
+#endif
 }
 
 void

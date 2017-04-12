@@ -99,15 +99,22 @@ void print_usage(int rank, const char *errstr)
     fprintf(stderr, "    --pvtp : Enable PVTP isosurface output.\n");
 #endif
 
+#ifdef HAS_ADIOS
+    fprintf(stderr, "    --adiosfull METHOD : Enable ADIOS full output with corresponding method.\n"
+                    "    --adiosiso METHOD : Enable ADIOS isosurface output with corresponding method.\n"
+                    "    --adiosopts OPTS : Pass options to ADIOS."
+    );
+#endif
+
 #ifdef HAS_HDF5
     fprintf(stderr, "    --hdf5i : Enable HDF5 full output.\n"
                     "    --hdf5p : Enable HDF5 isosurface output.\n"
                     "    --hdf5i_chunk CI CJ CK : Chunk Size (CI,CJ,CK); full output.\n"
                     "      valid values are CI <= NI, CJ <= NJ, CK <= NK\n"
                     "    --hdf5p_chunk CI : Integer percentage of triangles (CI); isosurface output.\n"
-                    "      valid values are 0 < CI <= 100 \n"
-	            "    --hdf5_compress : enable compression \n"
-	    );
+                    "      valid values are 2 <= CI <= 100 \n"
+                    "    --hdf5_compress : enable compression \n"
+    );
 #endif
     /*## End of Output Module Usage Strings ##*/
 }
@@ -212,6 +219,7 @@ int main(int argc, char **argv)
     struct adiosfullinfo adiosfull_nfo;
     char *adiosisomethod = NULL;
     struct adiosisoinfo adiosiso_nfo;
+    char *adiosopts = NULL;
 #endif
  
 #ifdef HAS_HDF5
@@ -298,7 +306,10 @@ int main(int argc, char **argv)
         }
         else if(!strcasecmp(argv[a], "--adiosiso")) {
             adiosisomethod = argv[++a];
-	}
+        }
+        else if(!strcasecmp(argv[a], "--adiosopts")) {
+            adiosopts = argv[++a];
+        }
 #endif
 
 #ifdef HAS_HDF5
@@ -309,18 +320,18 @@ int main(int argc, char **argv)
 	    hdf5pout = 1;
         }
         else if(!strcasecmp(argv[a], "--hdf5i_chunk")) {
-	  hdf5i_chunk = malloc(3 * sizeof(hsize_t));
-	  hdf5i_chunk[0] = (hsize_t)strtoul(argv[++a], NULL, 0);
-	  hdf5i_chunk[1] = (hsize_t)strtoul(argv[++a], NULL, 0);
-	  hdf5i_chunk[2] = (hsize_t)strtoul(argv[++a], NULL, 0);
+            hdf5i_chunk = malloc(3 * sizeof(hsize_t));
+            hdf5i_chunk[2] = (hsize_t)strtoul(argv[++a], NULL, 0);
+            hdf5i_chunk[1] = (hsize_t)strtoul(argv[++a], NULL, 0);
+            hdf5i_chunk[0] = (hsize_t)strtoul(argv[++a], NULL, 0);
         }
         else if(!strcasecmp(argv[a], "--hdf5p_chunk")) {
-	  hdf5p_chunk = malloc(1 * sizeof(hsize_t));
-	  hdf5p_chunk[0] = (hsize_t)strtoul(argv[++a], NULL, 0);
+            hdf5p_chunk = malloc(1 * sizeof(hsize_t));
+            hdf5p_chunk[0] = (hsize_t)strtoul(argv[++a], NULL, 0);
         }
-	else if(!strcasecmp(argv[a], "--hdf5_compress")) {
-	  hdf5_compress=1;
-	}
+        else if(!strcasecmp(argv[a], "--hdf5_compress")) {
+            hdf5_compress=1;
+        }
 #endif
 
         /*## End of Output Module Command Line Arguments ##*/
@@ -418,13 +429,13 @@ int main(int argc, char **argv)
 #ifdef HAS_ADIOS
     if(adiosfullmethod) {
         adiosfull_init(&adiosfull_nfo, adiosfullmethod, "cartiso.full", comm, rank, nprocs, nt,
-                       ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, deltaz);
+                       ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, deltaz, adiosopts);
         adiosfull_addvar(&adiosfull_nfo, "value", data);
         adiosfull_addvar(&adiosfull_nfo, "noise", xdata);
     }
     if(adiosisomethod) {
         adiosiso_init(&adiosiso_nfo, adiosisomethod, "cartiso.iso", comm, rank, nprocs, nt,
-                       ni, nj, nk, cni, cnj, cnk);
+                       ni, nj, nk, cni, cnj, cnk, adiosopts);
         adiosiso_addxvar(&adiosiso_nfo, "noise");
     }
 #endif

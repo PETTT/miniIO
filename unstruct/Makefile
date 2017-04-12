@@ -24,10 +24,8 @@ endif
 
 ### if NC_DIR is set then also enable netCDF Output Module ###
 ifdef NC_DIR
-  LIBS += $(NC_DIR)/lib/libnetcdf.a -lhdf5 -lhdf5_hl -lz -ldl
-  INCLUDE += -I$(NC_DIR)/include
-  OBJS += netcdf.o
-  SRCS += netcdf.c
+  OBJS += ncunstruct.o
+  SRCS += ncunstruct.c
 endif
 
 endif

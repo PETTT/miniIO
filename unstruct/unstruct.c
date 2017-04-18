@@ -19,6 +19,10 @@
 #  include "adiosunstruct.h"
 #endif
 
+#ifdef HAS_NC
+#  include "ncunstruct.h"
+#endif
+
 #ifdef HAS_HDF5
 #  include "hdf5unstruct.h"
 #endif
@@ -106,7 +110,7 @@ void prime_split(int n, int *n1, int *n2)
         v[vpos++] = n;
     }
 
-    /* Bisect the list of primes iteratively, compute 2 factors at the split: 
+    /* Bisect the list of primes iteratively, compute 2 factors at the split:
      *    n1*n2 is current bisection, p1*p2 is previous */
     for(i = 1; i < vpos; ++i) {   /* Try the i-th bisection */
         int j;
@@ -190,6 +194,10 @@ int main(int argc, char **argv)
     struct adiosinfo adiosnfo;
 #endif
 
+#ifdef HAS_NC
+    int ncout = 0;
+#endif
+
 #ifdef HAS_HDF5
     int hdf5out = 0;
     hsize_t *hdf5_chunk=NULL;
@@ -254,6 +262,15 @@ int main(int argc, char **argv)
 	}
 #endif
 
+#ifdef HAS_NC
+    else if(!strcasecmp(argv[a],"--nc")) {
+      ncout = 1;
+    }
+
+#endif
+
+
+
         /*## End of Output Module Command Line Arguments ##*/
 
         else {
@@ -291,11 +308,11 @@ int main(int argc, char **argv)
     nlyr = nu / 2;
     nptstask = (uint64_t)nu * nv * nlyr;   /* nptstask won't be exactly as requested */
     npoints = nptstask * nprocs;
-    if(rank == 0)  
+    if(rank == 0)
         printf("Actual points: %llu , points per task: %llu\n"
                 "uprocs: %d , vprocs: %d\n"
-                "nu: %d , nv: %d , nlyr: %d\n", 
-                npoints, nptstask, uprocs, vprocs, nu, nv, nlyr); 
+                "nu: %d , nv: %d , nlyr: %d\n",
+                npoints, nptstask, uprocs, vprocs, nu, nv, nlyr);
 
     /* Divide spherical topology tiles along u,v */
     du = 2 * M_PI / uprocs / (nu-1);
@@ -307,7 +324,7 @@ int main(int argc, char **argv)
     v0 = vrank * M_PI / vprocs - M_PI/2;
     v1 = (vrank+1) * M_PI / vprocs - M_PI/2;
     /*DBG printf("%d: %f-%f, %f-%f, %f, %f\n", rank, u0, u1, v0, v1, du, dv); */
-        
+
     /* Allocate grid points */
     xpts = (float *) malloc(nptstask*sizeof(float));
     ypts = (float *) malloc(nptstask*sizeof(float));
@@ -355,7 +372,7 @@ int main(int argc, char **argv)
 
     if(rank == 0) {
         printf("nelems2: %llu , nelems3: %llu\n"
-               "data size per task = %llu , all tasks = %llu\n", 
+               "data size per task = %llu , all tasks = %llu\n",
                nelems2, nelems3, datasize, datasize*nprocs);
     }
 
@@ -363,7 +380,7 @@ int main(int argc, char **argv)
 
 #ifdef HAS_ADIOS
     if(adiosmethod) {
-        adiosunstruct_init(&adiosnfo, adiosmethod, "unstruct.out", MPI_COMM_WORLD, 
+        adiosunstruct_init(&adiosnfo, adiosmethod, "unstruct.out", MPI_COMM_WORLD,
                            rank, nprocs, nt, nptstask, nelems3, nelems2);
         adiosunstruct_addvar(&adiosnfo, "noise");
     }
@@ -412,7 +429,7 @@ int main(int argc, char **argv)
         timer_tick(&outtime, MPI_COMM_WORLD, 1);
 
         /*## Add Output Modules' Function Calls Per Timestep Here ##*/
-        
+
 #ifdef HAS_PRZM
         if(przmout) {
             if(rank == 0) {
@@ -421,7 +438,7 @@ int main(int argc, char **argv)
             writeprzm("unstruct", MPI_COMM_WORLD, t, nptstask, xpts, ypts, zpts,
                       nelems3, conns3, nelems2, conns2, "noise", data);
         }
-#endif       
+#endif
 
 #ifdef HAS_ADIOS
         if(adiosmethod) {
@@ -440,7 +457,18 @@ int main(int argc, char **argv)
             writehdf5("unstruct", MPI_COMM_WORLD, t, npoints, nptstask, xpts, ypts, zpts,
                       nelems3, conns3, nelems2, conns2, "noise", data, hdf5_chunk, hdf5_compress);
 
-	    
+
+        }
+#endif
+
+#ifdef HAS_NC
+        if(ncout) {
+          if(rank == 0) {
+            printf("    Writing netCDF...\n"); fflush(stdout);
+          }
+
+          writenc("unstruct", MPI_COMM_WORLD, t, npoints, nptstask, xpts, ypts, zpts,
+                  nelems3, conns3, nelems2, conns2, "noise", data);
         }
 #endif
 
@@ -455,7 +483,7 @@ int main(int argc, char **argv)
     /*## Add Output Modules' Cleanup Here ##*/
 
 #ifdef HAS_ADIOS
-    if(adiosmethod) 
+    if(adiosmethod)
         adiosunstruct_finalize(&adiosnfo);
 #endif
 
@@ -470,4 +498,3 @@ int main(int argc, char **argv)
 
     return 0;
 }
-

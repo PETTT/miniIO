@@ -70,6 +70,10 @@ void print_usage(int rank, const char *errstr)
 	            "   --hdf5_compress : enable compression \n"
 	    );
 #endif
+#ifdef HAS_NC
+    fprintf(stderr, "    --nc : Enable netCDF Output"
+#endif
+
     /*## End of Output Module Usage Strings ##*/
 }
 

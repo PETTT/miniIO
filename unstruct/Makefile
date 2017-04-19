@@ -28,8 +28,6 @@ ifdef NC_DIR
   SRCS += ncunstruct.c
 endif
 
-endif
-
 ### End of Output Modules ###
 
 CFLAGS += $(OSNINC)

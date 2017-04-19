@@ -71,7 +71,7 @@ void print_usage(int rank, const char *errstr)
 	    );
 #endif
 #ifdef HAS_NC
-    fprintf(stderr, "    --nc : Enable netCDF Output"
+    fprintf(stderr, "    --nc : Enable netCDF Output \n");
 #endif
 
     /*## End of Output Module Usage Strings ##*/

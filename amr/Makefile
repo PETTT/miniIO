@@ -19,6 +19,11 @@ ifdef ADIOS_HOME
   SRCS += adiosamr.c
 endif
 
+ifdef NC_DIR
+	OBJS += ncamr.o
+    SRCS += ncamr.c
+endif
+
 ifdef HDF5_DIR
   OBJS += hdf5amr.o
   SRCS += hdf5amr.c

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) DoD HPCMP PETTT.  All rights reserved.  
+ * Copyright (c) DoD HPCMP PETTT.  All rights reserved.
  * See LICENSE file for details.
  */
 
@@ -27,6 +27,10 @@
 #ifdef HAS_ADIOS
 #  include "adiosfull.h"
 #  include "adiosiso.h"
+#endif
+
+#ifdef HAS_NC
+#  include "nccartiso.h"
 #endif
 
 #ifdef HAS_HDF5
@@ -116,6 +120,12 @@ void print_usage(int rank, const char *errstr)
                     "    --hdf5_compress : enable compression \n"
     );
 #endif
+
+#ifdef HAS_NC
+    fprintf(stderr, "    --nci : Enable NC full output.\n"
+            "    --ncp : Enable NC isosurface output.\n");
+#endif
+
     /*## End of Output Module Usage Strings ##*/
 }
 
@@ -138,10 +148,10 @@ void print_stats(MPI_Comm comm, int rank, int nprocs, uint64_t ntris)
         Ltot = Lbar;
         Lbar /= nprocs;
         Limb = (Lmax / Lbar - 1);
-        for(i = 0; i < nprocs; i++) 
+        for(i = 0; i < nprocs; i++)
             Lstd += (rntris[i]-Lbar)*(rntris[i]-Lbar);
         Lstd = sqrt(Lstd/nprocs);
-        printf("      Total tris = %.0f, Mean = %.1f, Std = %.1f, Load imbalance = %0.2f\n", 
+        printf("      Total tris = %.0f, Mean = %.1f, Std = %.1f, Load imbalance = %0.2f\n",
                 Ltot, Lbar, Lstd, Limb);
         free(rntris);
     }
@@ -195,9 +205,9 @@ int main(int argc, char **argv)
     struct osn_context *osn;    /* Open simplex noise context */
     float isothresh = -1.f;    /* Threshold of isosurface, -1 invalid */
     double computetime, fullouttime, isotime, isoouttime;   /* Timers */
- 
+
     /* MPI vars */
-    int rank, nprocs; 
+    int rank, nprocs;
     int cprocs[3], cpers[3], crnk[3];  /* MPI Cartesian info */
     MPI_Comm comm;    /* MPI Cartesian communicator */
     int cni, cnj, cnk;   /* Points in this task */
@@ -205,7 +215,7 @@ int main(int argc, char **argv)
     float xs, ys, zs;    /* Global coordinate starting points */
 
     /*## Add Output Modules' Variables Here ##*/
-    
+
 #ifdef HAS_PVTI
     int pvtiout = 0;
 #endif
@@ -221,7 +231,12 @@ int main(int argc, char **argv)
     struct adiosisoinfo adiosiso_nfo;
     char *adiosopts = NULL;
 #endif
- 
+
+#ifdef HAS_NC
+    int nciout = 0;
+    int ncpout = 0;
+#endif
+
 #ifdef HAS_HDF5
     int hdf5iout = 0;
     int hdf5pout = 0;
@@ -284,10 +299,10 @@ int main(int argc, char **argv)
             mode = gaussresize;
         } else if(!strcasecmp(argv[a], "--backward")) {
             gaussmovebackward = 1;
-        } 
+        }
 
         /*## Add Output Modules' Command Line Arguments Here ##*/
-        
+
 #ifdef HAS_PVTI
         else if(!strcasecmp(argv[a], "--pvti")) {
             pvtiout = 1;
@@ -309,6 +324,14 @@ int main(int argc, char **argv)
         }
         else if(!strcasecmp(argv[a], "--adiosopts")) {
             adiosopts = argv[++a];
+        }
+#endif
+
+#ifdef HAS_NC
+        else if(!strcasecmp(argv[a], "--nci")) {
+          nciout = 1;
+        } else if(!strcasecmp(argv[a], "--ncp")) {
+          ncpout = 1;
         }
 #endif
 
@@ -361,7 +384,7 @@ int main(int argc, char **argv)
                 "by axis tasks.\n   This is required for proper load balancing.");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
- 
+
     /* Set up Cartesian communicator */
     cprocs[0] = inp;  cprocs[1] = jnp;  cprocs[2] = knp;
     cpers[0] = 0;  cpers[1] = 0;  cpers[2] = 0;    /* No periodicity */
@@ -369,7 +392,7 @@ int main(int argc, char **argv)
     MPI_Comm_rank(comm, &rank);
     MPI_Cart_coords(comm, rank, 3, crnk);
 
-    /* Assign default arguments for A & isothresh */ 
+    /* Assign default arguments for A & isothresh */
     if(isothresh == -1.f) {
         /*isothresh = exp(-0.5);   * Default is at the gaussian of 1*sigma */
         isothresh = 0.68;   /* Needs to be > 2/3 to extract the "top" half of sin topology */
@@ -377,7 +400,7 @@ int main(int argc, char **argv)
     if(A == -1.f)
         A = (1 - exp(-0.5));   /* Default is at gaussian of 1*sigma, but from bottom */
     if(rank==0)  printf("isothresh = %f, A = %f\n", isothresh, A);
- 
+
     /* Data inits */
     omegax = fx * 2 * M_PI;
     omegay = fy * 2 * M_PI;
@@ -395,7 +418,7 @@ int main(int argc, char **argv)
     ys = js * deltay;
     zs = ks * deltaz;
     /* add a ghost point to the far side of each axis for pvti & iso continuity */
-    /* note: this seems to confuse readability of formats that don't expect continuity, 
+    /* note: this seems to confuse readability of formats that don't expect continuity,
      *       like ADIOS and ?, but it does not hurt for mere benchmarking of those */
     if(1 && crnk[0] < inp-1)   cni++;
     if(1 && crnk[1] < jnp-1)   cnj++;
@@ -441,9 +464,9 @@ int main(int argc, char **argv)
 #endif
 
     /*## End of Output Module Initialization ##*/
- 
+
     /* Main loops */
- 
+
     for(t = 0, tt = tstart; t < nt; t++, tt++) {
         float tpar = (float)t / (nt-1);    /* Time anim. parameter [0,1] */
         float alpha = 1.f;        /* Time parameter: changes for sin2gauss */
@@ -492,7 +515,7 @@ int main(int argc, char **argv)
         sigmax2 = 2*sigmax*sigmax;    /* 2*sigma^2 */
         sigmay2 = 2*sigmay*sigmay;
         sigmaz2 = 2*sigmaz*sigmaz;
-      
+
         /* Spatial loops */
         z = zs;
         for(k = 0, ii = 0; k < cnk; k++) {
@@ -505,7 +528,7 @@ int main(int argc, char **argv)
                     data[ii] = exp( -alpha*( (x-x0)*(x-x0)/sigmax2 + \
 					     (y-y0)*(y-y0)/sigmay2 +	\
                                              (z-z0)*(z-z0)/sigmaz2 ) ) * sinusoid;
-                    xdata[ii] = (float)open_simplex_noise4(osn, x * noisespacefreq, 
+                    xdata[ii] = (float)open_simplex_noise4(osn, x * noisespacefreq,
                                   y * noisespacefreq, z * noisespacefreq, tt*noisetimefreq);
                     /* need other frequencies */
                     x += deltax;
@@ -530,10 +553,10 @@ int main(int argc, char **argv)
                 printf("      Writing pvti...\n");   fflush(stdout);
             }
             writepvti("cartiso", "value", comm, rank, nprocs, tt, ni, nj, nk,
-                      is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1, 
+                      is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
                       deltax, deltay, deltaz, data);
             writepvti("cartiso", "noise", comm, rank, nprocs, tt, ni, nj, nk,
-                      is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1, 
+                      is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
                       deltax, deltay, deltaz, xdata);
         }
 #endif
@@ -546,6 +569,17 @@ int main(int argc, char **argv)
             adiosfull_write(&adiosfull_nfo, tt);
 	}
 #endif
+
+#ifdef HAS_NC
+        if(nciout) {
+          if(rank == 0) {
+            printf("      Writing nci...\n"); fflush(stdout);
+          }
+        }
+#endif
+
+
+
 #ifdef HAS_HDF5
         if(hdf5iout) {
             if(rank == 0) {
@@ -581,7 +615,7 @@ int main(int argc, char **argv)
 
         /*## Add ISOSURFACE OUTPUT Modules' Function Calls Per Timestep Here ##*/
 
-#ifdef HAS_PVTP 
+#ifdef HAS_PVTP
         if(pvtpout) {
             if(rank == 0) {
                 printf("      Writing pvtp...\n");   fflush(stdout);
@@ -600,6 +634,15 @@ int main(int argc, char **argv)
                            &iso.xvals);
 	}
 #endif
+
+#ifdef HAS_NC
+        if(ncpout) {
+          if(rank == 0) {
+            printf("     Writing ncp...\n"); fflush(stdout);
+          }
+        }
+#endif
+
 #ifdef HAS_HDF5
         if(hdf5pout) {
             if(rank == 0) {
@@ -637,9 +680,8 @@ int main(int argc, char **argv)
     free(hdf5i_chunk);
     free(hdf5p_chunk);
 #endif
- 
+
     MPI_Finalize();
- 
+
     return 0;
 }
-

@@ -19,6 +19,10 @@
 #  include "adiosamr.h"
 #endif
 
+#ifdef HAS_NC
+#  include "ncamr.h"
+#endif
+
 #ifdef HAS_HDF5
 #  include "hdf5amr.h"
 #endif
@@ -48,11 +52,11 @@ int main(int argc, char **argv) {
   cubeInfo cubedata;
   struct osn_context *simpnoise;    /* Open simplex noise context */
   double computetime, outtime;   /* Timers */
-  
+
   /* MPI vars */
   MPI_Comm comm = MPI_COMM_WORLD;
   int cprocs[3], cpers[3], crnk[3];  /* MPI Cartesian info */
-  int rank, nprocs; 
+  int rank, nprocs;
   int cni, cnj, cnk;   /* Points in this task */
   int is, js, ks;      /* Global index starting points */
   float xs, ys, zs;    /* Global coordinate starting points */
@@ -60,22 +64,29 @@ int main(int argc, char **argv) {
 #ifdef HAS_VTKOUT
     int vtkout = 0;
 #endif
-  
+
 #ifdef HAS_ADIOS
   char      *adios_groupname="amr";
   char      *adios_method=NULL;   /* POSIX|MPI|MPI_LUSTRE|MPI_AGGREGATE|PHDF5   */
   struct adiosamrinfo adiosamr_nfo;
 #endif
+
+#ifdef HAS_NC
+  char      *nc_groupname="amr";
+  struct ncamrinfo ncamr_nfo;
+  int ncout = 0;
+#endif
+
 #ifdef HAS_HDF5
   char      *hdf5_groupname="amr";
   struct hdf5amrinfo hdf5amr_nfo;
   int hdf5out = 0;
 #endif
-  
+
   MPI_Init(&argc, &argv);
   MPI_Comm_rank(comm, &rank);
   MPI_Comm_size(comm, &nprocs);
-  
+
   /* Parse command line */
   for(a = 1; a < argc; a++) {
     if(!strcasecmp(argv[a], "--tasks")) {
@@ -114,9 +125,15 @@ int main(int argc, char **argv) {
 #else
       if(rank == 0)   fprintf(stderr, "HDF5 option not available: %s\n\n", argv[a]);
       print_usage(rank, NULL);
-      MPI_Abort(comm, 1); 
+      MPI_Abort(comm, 1);
 #endif
     }
+
+#ifdef HAS_NC
+    else if(!strcasecmp(argv[a], "--nc")) {
+      ncout = 1;
+    }
+#endif
 
 #ifdef HAS_VTKOUT
     else if(!strcasecmp(argv[a], "--vtkout")) {
@@ -164,14 +181,14 @@ int main(int argc, char **argv) {
     print_usage(rank, "Error: number of timesteps not specified or incorrect");
     MPI_Abort(comm, 1);
   }
-  
+
   /* Set up Cartesian communicator */
   cprocs[0] = inp;  cprocs[1] = jnp;  cprocs[2] = knp;
   cpers[0] = 0;  cpers[1] = 0;  cpers[2] = 0;    /* No periodicity */
   MPI_Cart_create(MPI_COMM_WORLD, 3, cprocs, cpers, 1, &comm);
   MPI_Comm_rank(comm, &rank);
   MPI_Cart_coords(comm, rank, 3, crnk);
-  
+
   deltax = 1.f/(ni-1);
   deltay = 1.f/(nj-1);
   deltaz = 1.f/(nk-1);
@@ -184,7 +201,7 @@ int main(int argc, char **argv) {
   xs = is * deltax;
   ys = js * deltay;
   zs = ks * deltaz;
-  
+
 
 
   /* Set up osn */
@@ -192,7 +209,7 @@ int main(int argc, char **argv) {
 
   /* Allocate arrays */
   cubesinit(&cubedata, cni*cnj*cnk, maxLevel, debug);
-  
+
   /* init ADIOS */
 #ifdef HAS_ADIOS
   if (adios_method) {
@@ -208,23 +225,29 @@ int main(int argc, char **argv) {
   }
 #endif
 
+#ifdef HAS_NC
+  if(ncout) {
+
+  }
+#endif
+
   if (debug) {
     printf("(cni=%d, cnj=%d, cnk=%d) \n", cni, cnj, cnk);
   }
-  
+
   for(t = 0, tt = tstart; t < nt; t++, tt++) {
     size_t ii;     /* data index */
-    
+
     cubedata.npoints = 0;
     cubedata.ncubes = 0;
 
-    
+
     if (debug) {
 	printf("Hi: rank=%d: %d of %d:  timestep=%d\n", rank, rank+1, nprocs, tt);
     }
 
     timer_tick(&computetime, comm, 1);
-   
+
     z = zs;
     for(k = 0, ii = 0; k < cnk; k++) {
       y = ys;
@@ -239,23 +262,23 @@ int main(int argc, char **argv) {
 	    printf("Start from main Block_id=%d\n", block_id+1);
 	  }
 	  refine(&cubedata, tt, (block_id+1), threshold, 0, x, y, z, deltax, deltay, deltaz, simpnoise, maxLevel, noisespacefreq, noisetimefreq);
-	
+
 	  x += deltax;
 	}
 	y += deltay;
       }
       z += deltaz;
-    }	
+    }
 
     timer_tock(&computetime);
-    
+
     /* print out data */
     if (debug)  {
       cubeprint(&cubedata);
     }
 
 
-#ifdef HAS_VTKOUT 
+#ifdef HAS_VTKOUT
     if(vtkout) {
       if(rank == 0) {
 	printf("      Writing VTK ...\n");   fflush(stdout);
@@ -266,7 +289,7 @@ int main(int argc, char **argv) {
 #endif
 
     timer_tick(&outtime, comm, 1);
-    
+
 #ifdef HAS_ADIOS
     if (adios_method) {
       if(rank == 0) {
@@ -285,16 +308,24 @@ int main(int argc, char **argv) {
     }
 #endif
 
-    
+#ifdef HAS_NC
+    if(ncout) {
+      if(rank == 0) {
+        printf("     Writing netCDF ...\n"); fflush(stdout);
+      }
+      nc_write(&ncamr_nfo, tt, cubedata.npoints, cubedata.points, &cubedata.data);
+    }
+#endif
+
     timer_tock(&outtime);
     timer_collectprintstats(computetime, comm, 0, "   Compute");
     timer_collectprintstats(outtime, comm, 0, "   Output");
   }
 
-   
-  if (debug) 
+
+  if (debug)
     printf("Finalizing:rank %d \n", rank);
-  
+
   /* finalize ADIOS */
 #ifdef HAS_ADIOS
   if (adios_method) adiosamr_finalize(&adiosamr_nfo);
@@ -303,6 +334,12 @@ int main(int argc, char **argv) {
 #ifdef HAS_HDF5
   if(hdf5out) {
     hdf5_finalize(&hdf5amr_nfo);
+  }
+#endif
+
+#ifdef HAS_NC
+  if(ncout) {
+    nc_finalize(&ncamr_nfo);
   }
 #endif
 
@@ -344,6 +381,10 @@ void print_usage(int rank, const char *errstr)
 	  "    --tsteps NT : Number of time steps; valid values are > 0;  Default:  50)\n"
 	  "    --tstart TS : Starting time step; valid values are > 0;  Default: 0\n"
 
+#ifdef HAS_NC
+          "\n   --nc: Enable netCDF output\n"
+#endif
+
 #ifdef HAS_ADIOS
 	  "    --adios [POSIX|MPI|MPI_LUSTRE|MPI_AGGREGATE|PHDF5]: Enable ADIOS output\n"
 #endif
@@ -352,6 +393,6 @@ void print_usage(int rank, const char *errstr)
 #ifdef HAS_VTKOUT
     fprintf(stderr, "    --vtkout : Enable VTK output.\n");
 #endif
-    
+
   /*## End of Output Module Usage Strings ##*/
 }

@@ -13,7 +13,7 @@
 #include <inttypes.h>
 
 #include "netcdf.h"
-
+#include "netcdf_par.h"
 static const int fnstrmax = 4095;
 
 #define NCERR {if(err != NC_NOERR) {printf("(rank %d) Error at line %d: %s\n",rank,__LINE__,nc_strerror(err)); fflush(stdout); MPI_Abort(comm,1);}}
@@ -36,6 +36,8 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
   int var_id_normals;
   int var_id_conn;
   int var_id_xname;
+  size_t start[1];
+  size_t count[1];
 
   int var_dim_phony_0;
   int var_dim_phony_1;
@@ -46,7 +48,7 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
   uint64_t *temparr;
   int err = 0;
 
-  snprintf(fname, fnstrmax, "cartiso_t%0*d.h5", timedigits, tstep);
+  snprintf(fname, fnstrmax, "cartiso_t%0*d.nc", timedigits, tstep);
 
   /* Gather tri counts, in case some are zero, to leave them out */
   rntris = (uint64_t *) malloc(nprocs*sizeof(uint64_t));
@@ -60,7 +62,7 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     tot_tris = tot_tris + rntris[i];
   }
 
-  if(rank == 0) {
+  //if(rank == 0) {
     /* Create file with parallel I/O. */
     err = nc_create_par(fname,NC_NETCDF4|NC_MPIIO,comm,info,&ncid); NCERR;
 
@@ -70,11 +72,11 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     /*
      * Create top level dimension, variables.
      */
-    err = nc_def_dim(ncid,"Phony Dimension 1",&var_dim_phony_1); NCERR;
-    err = nc_def_var(ncid,"conn",NC_UINT64,&var_dim_phony_1,&var_id_conn); NCERR;
+    err = nc_def_dim(ncid,"Phony_Dimension_1",NC_UNLIMITED,&var_dim_phony_1); NCERR;
+    err = nc_def_var(ncid,"conn",NC_UINT64,1,&var_dim_phony_1,&var_id_conn); NCERR;
 
     if(xvals) {
-      err = nc_def_var(ncid,xname,NC_FLOAT,&var_dim_phony_1,&var_id_xname); NCERR;
+      err = nc_def_var(ncid,xname,NC_FLOAT,1,&var_dim_phony_1,&var_id_xname); NCERR;
     }
 
     /*
@@ -82,15 +84,15 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
      */
 
     /* Create phony dimension. */
-    err = nc_def_dim(grp_id_grid_pts,"Phony Dimension 0",&var_dim_phony_0); NCERR;
+    err = nc_def_dim(grp_id_grid_pts,"Phony_Dimension_0",NC_UNLIMITED,&var_dim_phony_0); NCERR;
 
     /* Create group variables xyz and normals */
-    err = nc_def_var(grp_id_grid_pts,"xyz",NC_FLOAT,&var_dim_phony_0,&var_id_xyz);
-    err = nc_def_var(grp_id_grid_pts,"Normals",NC_FLOAT,&var_dim_phony_0,&var_id_normals);
+    err = nc_def_var(grp_id_grid_pts,"xyz",NC_FLOAT,1,&var_dim_phony_0,&var_id_xyz);
+    err = nc_def_var(grp_id_grid_pts,"Normals",NC_FLOAT,1,&var_dim_phony_0,&var_id_normals);
 
     err = nc_enddef(ncid); NCERR;
 
-  }
+    //}
 
   MPI_Barrier(comm);
 
@@ -104,36 +106,9 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
   /* Set up variables for parallel I/O Access. */
   err = nc_var_par_access(ncid,var_id_conn,NC_COLLECTIVE); NCERR;
   err = nc_var_par_access(ncid,var_id_xname,NC_COLLECTIVE); NCERR;
-  err = nc_var_par_access(grp_id_grid_points,var_id_xyz,NC_COLLECTIVE); NCERR;
-  err = nc_var_par_access(grp_id_grid_points,var_id_normals,NC_COLLECTIVE); NCERR;
+  err = nc_var_par_access(grp_id_grid_pts,var_id_xyz,NC_COLLECTIVE); NCERR;
+  err = nc_var_par_access(grp_id_grid_pts,var_id_normals,NC_COLLECTIVE); NCERR;
 
-  /*
-   * Each process defines dataset in memory and writes it to the hyperslab
-   * in the file.
-   */
-
-  start[0] = 0;
-  for (j=0; j<rank; j++) {
-    start[0] = start[0] + 9*rntris[j];
-  }
-
-  count[0] = (hsize_t)ntris*9;
-
-
-  /* Select hyperslab in the file.*/
-
-  err = nc_put_vara_float(var_id_xyz,start,count,points); NCERR;
-  // err = H5Dwrite(did, H5T_NATIVE_FLOAT, memspace, filespace, plist_id, points);
-  //  if( err < 0) {
-  //    fprintf(stderr, "writencp error: could not write datset %s \n", "xyz");
-  //    MPI_Abort(comm, 1);
-  //  }
-
-  //  err = H5Dclose(did);
-
-
-
-  //  did = H5Dopen(group_id, "Normals",H5P_DEFAULT);
   /*
    * Each process defines dataset in memory and writes it to the hyperslab
    * in the file.
@@ -145,14 +120,8 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     start[0] = start[0] + 9*rntris[j];
   }
 
-  count[0] = (hsize_t)ntris*9;
-
-  //memspace = H5Screate_simple(1, count, NULL);
-
-  /* Select hyperslab in the file.*/
-  //filespace = H5Dget_space(did);
-  //H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL );
-  err = nc_put_vara_float(var_id_xyz,start,count,points); NCERR;
+  count[0] = (size_t)ntris*9;
+  err = nc_put_vara_float(grp_id_grid_pts,var_id_xyz,start,count,points); NCERR;
 
   /* End XYZ */
 
@@ -166,35 +135,22 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     start[0] = start[0] + 3*rntris[j];
   }
 
-  count[0] = (hsize_t)ntris*3;
+  count[0] = (size_t)ntris*3;
 
-  err = nc_put_vara_float(var_id_normals,start,count,norms); NCERR;
+  err = nc_put_vara_float(grp_id_grid_pts,var_id_normals,start,count,norms); NCERR;
 
   /* End Normals */
 
   /* Conn */
-  did = H5Dopen(file_id, "conn",H5P_DEFAULT);
-
-  /*
+   /*
    * Each process defines dataset in memory and writes it to the hyperslab
    * in the file.
    */
 
-  start[0] = 0;
-  for (j=0; j<rank; j++) {
-    start[0] = start[0] + 3*rntris[j];
-  }
-
-  count[0] = (hsize_t)ntris*3;
-
-  memspace = H5Screate_simple(1, count, NULL);
+  count[0] = (size_t)ntris*3;
 
   /* Select hyperslab in the file.*/
-  filespace = H5Dget_space(did);
-  H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL );
   temparr = (uint64_t *) malloc(ntris*3*sizeof(uint64_t));
-
-
 
   start[0] = 0;
   for (j=0; j<rank; j++) {
@@ -204,25 +160,24 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
   for(j = 0; j < ntris*3; j++)
     temparr[j] = start[0] + j;
 
-  err = H5Dwrite(did, H5T_NATIVE_ULLONG, memspace, filespace, plist_id, temparr);
+  err = nc_put_vara_long(ncid,var_id_conn,start,count,temparr); NCERR;
 
-  err = H5Dclose(did);
+  /* End Conn */
 
+
+  /* xvals */
   if(xvals) {
-    did = H5Dopen(file_id, xname, H5P_DEFAULT);
-    err = H5Dwrite(did, H5T_NATIVE_FLOAT, memspace, filespace, plist_id, xvals);
-    H5Dclose(did);
+
+    start[0] = 0;
+    count[0] = (size_t)ntris*3;
+
+    err = nc_put_vara_float(ncid,var_id_xname,start,count,xvals);
   }
+  /* End xvals */
 
-  err = H5Sclose(filespace);
-  err = H5Sclose(memspace);
-
-  if(H5Pclose(plist_id) < 0)
-    printf("writehdf5p error: Could not close property list \n");
+  err = nc_close(ncid); NCERR;
 
   free(temparr);
   free(rntris);
-  if(H5Fclose(file_id) != 0)
-    printf("writehdf5p error: Could not close HDF5 file \n");
 
 }

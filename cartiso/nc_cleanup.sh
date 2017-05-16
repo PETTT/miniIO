@@ -8,4 +8,3 @@ rm -f *.h5
 rm -f *.xmf
 rm -f *.nc
 rm -f *~
-rm -f cartiso

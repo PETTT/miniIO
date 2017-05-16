@@ -575,14 +575,15 @@ int main(int argc, char **argv)
           if(rank == 0) {
             printf("      Writing nci...\n"); fflush(stdout);
           }
-            writehdf5i("cartiso", "value", comm, rank, nprocs, tt, ni, nj, nk,
+          /*
+            writenci("cartiso", "value", comm, rank, nprocs, tt, ni, nj, nk,
                       is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
                        deltax, deltay, deltaz, cni, cnj, cnk, data);
-            writehdf5i("cartiso", "noise", comm, rank, nprocs, tt, ni, nj, nk,
+            writenci("cartiso", "noise", comm, rank, nprocs, tt, ni, nj, nk,
                       is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
                        deltax, deltay, deltaz, cni, cnj, cnk, xdata);
 
-
+          */
         }
 #endif
 
@@ -648,7 +649,7 @@ int main(int argc, char **argv)
           if(rank == 0) {
             printf("     Writing ncp...\n"); fflush(stdout);
           }
-          writehdf5p("cartiso", "iso", comm, rank, nprocs, tt, iso.ntris,
+          writencp("cartiso", "iso", comm, rank, nprocs, tt, iso.ntris,
                      iso.points, iso.norms, iso.xvals, "noise");
         }
 #endif

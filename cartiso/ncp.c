@@ -18,7 +18,7 @@ static const int fnstrmax = 4095;
 
 #define NCERR {if(err != NC_NOERR) {printf("(rank %d) Error at line %d: %s\n",rank,__LINE__,nc_strerror(err)); fflush(stdout); MPI_Abort(comm,1);}}
 
-/*! Write netCDF P data/info
+/*! Write ncp.
 
  */
 void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,

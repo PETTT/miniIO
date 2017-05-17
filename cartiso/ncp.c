@@ -62,37 +62,37 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     tot_tris = tot_tris + rntris[i];
   }
 
-  //if(rank == 0) {
-    /* Create file with parallel I/O. */
-    err = nc_create_par(fname,NC_NETCDF4|NC_MPIIO,comm,info,&ncid); NCERR;
 
-    /* Create Grid Group */
-    err = nc_def_grp(ncid,"grid points",&grp_id_grid_pts); NCERR;
+  /* Create file with parallel I/O. */
+  err = nc_create_par(fname,NC_NETCDF4|NC_MPIIO,comm,info,&ncid); NCERR;
 
-    /*
-     * Create top level dimension, variables.
-     */
-    err = nc_def_dim(ncid,"Phony_Dimension_1",NC_UNLIMITED,&var_dim_phony_1); NCERR;
-    err = nc_def_var(ncid,"conn",NC_UINT64,1,&var_dim_phony_1,&var_id_conn); NCERR;
+  /* Create Grid Group */
+  err = nc_def_grp(ncid,"grid points",&grp_id_grid_pts); NCERR;
 
-    if(xvals) {
-      err = nc_def_var(ncid,xname,NC_FLOAT,1,&var_dim_phony_1,&var_id_xname); NCERR;
-    }
+  /*
+   * Create top level dimension, variables.
+   */
+  err = nc_def_dim(ncid,"Phony_Dimension_1",NC_UNLIMITED,&var_dim_phony_1); NCERR;
+  err = nc_def_var(ncid,"conn",NC_UINT64,1,&var_dim_phony_1,&var_id_conn); NCERR;
 
-    /*
-     * Create group dimension, variables.
-     */
+  if(xvals) {
+    err = nc_def_var(ncid,xname,NC_FLOAT,1,&var_dim_phony_1,&var_id_xname); NCERR;
+  }
 
-    /* Create phony dimension. */
-    err = nc_def_dim(grp_id_grid_pts,"Phony_Dimension_0",NC_UNLIMITED,&var_dim_phony_0); NCERR;
+  /*
+   * Create group dimension, variables.
+   */
 
-    /* Create group variables xyz and normals */
-    err = nc_def_var(grp_id_grid_pts,"xyz",NC_FLOAT,1,&var_dim_phony_0,&var_id_xyz);
-    err = nc_def_var(grp_id_grid_pts,"Normals",NC_FLOAT,1,&var_dim_phony_0,&var_id_normals);
+  /* Create phony dimension. */
+  err = nc_def_dim(grp_id_grid_pts,"Phony_Dimension_0",NC_UNLIMITED,&var_dim_phony_0); NCERR;
 
-    err = nc_enddef(ncid); NCERR;
+  /* Create group variables xyz and normals */
+  err = nc_def_var(grp_id_grid_pts,"xyz",NC_FLOAT,1,&var_dim_phony_0,&var_id_xyz);
+  err = nc_def_var(grp_id_grid_pts,"Normals",NC_FLOAT,1,&var_dim_phony_0,&var_id_normals);
 
-    //}
+  err = nc_enddef(ncid); NCERR;
+
+
 
   MPI_Barrier(comm);
 
@@ -142,7 +142,7 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
   /* End Normals */
 
   /* Conn */
-   /*
+  /*
    * Each process defines dataset in memory and writes it to the hyperslab
    * in the file.
    */
@@ -175,6 +175,7 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
   }
   /* End xvals */
 
+  MPI_Barrier(comm);
   err = nc_close(ncid); NCERR;
 
   free(temparr);

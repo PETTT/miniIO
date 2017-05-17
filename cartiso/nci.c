@@ -11,159 +11,78 @@
 #include <stdint.h>
 #include <mpi.h>
 
+#include "nccartiso.h"
 #include "netcdf.h"
 #include "netcdf_par.h"
 
 static const int fnstrmax = 4095;
+
+#define NCERR {if(err != NC_NOERR) {printf("(rank %d) Error at line %d: %s\n",rank,__LINE__,nc_strerror(err)); fflush(stdout); MPI_Abort(comm,1);}}
+
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
+
 
 /*! Write nci
 
  */
 void writenci(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
               int tstep, int ni, int nj, int nk, int is, int ie, int js, int je,
-              int ks, int ke, float deltax, float deltay, float deltaz, int nci, int ncj, int nck, float *data)
+              int ks, int ke, float deltax, float deltay, float deltaz, int nci,
+              int ncj, int nck, float *data)
 {
   char fname[fnstrmax+1];
-  char fname_xdmf[fnstrmax+1];
   int timedigits = 4;
   MPI_Info info = MPI_INFO_NULL;
-
-  hid_t file_id;
-  hid_t plist_id;
-  hid_t memspace;
-  hid_t filespace;
-  hid_t did;
-  hsize_t start[3], count[3];
-  hsize_t dims[3];
-  herr_t err;
-  hid_t chunk_pid;
+  int dimid = 0;
+  int ncid = 0;
+  int varid = 0;
+  int dimlen = 0;
+  size_t start[3] = {0,0,0};
+  size_t count[3] = {0,0,0};
+  int dims[3] = {0,0,0};
+  int dimids[3] = {0,0,0};
+  int err = 0;
 
   snprintf(fname, fnstrmax, "cart.%s_t%0*d.nc", varname, timedigits, tstep);
+  dimlen = MAX(ni,MAX(nj,nk));
+  /* Set up MPI info */
+  MPI_Info_create(&info);
+  MPI_Info_set(info, "striping_factor", "1");
 
-  /* Create pvti file */
-  //if(rank == 0) {
-
-  if( (file_id = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT)) < 0) {
-    fprintf(stderr, "writehdf5i error: could not create %s \n", fname);
-    MPI_Abort(comm, 1);
-  }
+  err = nc_create_par(fname,NC_NETCDF4|NC_MPIIO,comm,info,&ncid); NCERR;
 
   /* Create dataset */
-  dims[0] = (hsize_t)nk;
-  dims[1] = (hsize_t)nj;
-  dims[2] = (hsize_t)ni;
-  filespace = H5Screate_simple(3, dims, NULL);
+  dims[0] = (size_t)nk;
+  dims[1] = (size_t)nj;
+  dims[2] = (size_t)ni;
 
-  chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
+  /* Create the dimension, variable. */
 
-  if(h5_chunk) {
-	H5Pset_layout(chunk_pid, H5D_CHUNKED);
-	if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0 ) {
-	  printf("writehdf5i error: Could not set fill time\n");
-	  MPI_Abort(comm, 1);
-	}
-	H5Pset_chunk(chunk_pid, 3, h5_chunk);
+  err = nc_def_dim(ncid,"phony_dimension_0",dimlen,&dimid); NCERR;
 
-	if(hdf5_compress == 1) {
-	  /* Set ZLIB / DEFLATE Compression using compression level 6. */
-	  if( H5Pset_deflate (chunk_pid, 6) < 0 ) {
-	    printf("writehdf5i error: Could not set compression\n");
-	    MPI_Abort(comm, 1);
-	  }
-
-	  /* Uncomment these lines to set SZIP Compression
-	     szip_options_mask = H5_SZIP_NN_OPTION_MASK;
-	     szip_pixels_per_block = 16;
-	     status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
-	  */
-	}
+  for(int i = 0; i < 3; i++) {
+    dimids[i] = dimid;
   }
 
-  /* Create the dataset with default properties and close filespace. */
-  did = H5Dcreate(file_id, varname, H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
-  H5Dclose(did);
+  err = nc_def_var(ncid,varname,NC_FLOAT,3,&dimids[0],&varid); NCERR;
 
-  if(h5_chunk)
-	H5Pclose(chunk_pid);
+  err = nc_enddef(ncid); NCERR;
+  /* Set up parallel access for the variable. */
+  err = nc_var_par_access(ncid,varid,NC_COLLECTIVE); NCERR;
 
-  H5Sclose(filespace);
+  MPI_Barrier(comm);
 
-  H5Fclose(file_id);
+  start[0] = ks;
+  start[1] = js;
+  start[2] = is;
 
-  // } /* end rank==0 */
+  count[0] = (size_t)nck;
+  count[1] = (size_t)ncj;
+  count[2] = (size_t)nci;
 
- MPI_Barrier(comm);
+  err = nc_put_vara_float(ncid,varid,start,count,data); NCERR;
 
- /* Set up MPI info */
- MPI_Info_create(&info);
- MPI_Info_set(info, "striping_factor", "1");
+  MPI_Barrier(comm);
 
- /* Set up file access property list with parallel I/O access */
- if( (plist_id = H5Pcreate(H5P_FILE_ACCESS)) < 0) {
-   printf("writehdf5i error: Could not create property list \n");
-   MPI_Abort(comm, 1);
- }
- H5Pset_libver_bounds(plist_id, H5F_LIBVER_LATEST, H5F_LIBVER_LATEST);
- if(H5Pset_fapl_mpio(plist_id, MPI_COMM_WORLD, info) < 0) {
-   printf("writehdf5i error: Could not create property list \n");
-   MPI_Abort(comm, 1);
- }
-
- if( (file_id = H5Fopen(fname, H5F_ACC_RDWR, plist_id)) < 0) {
-   fprintf(stderr, "writehdf5i error: could not open %s \n", fname);
-   MPI_Abort(comm, 1);
- }
-
- if(H5Pclose(plist_id) < 0) {
-   printf("writehdf5i error: Could not close property list \n");
-   MPI_Abort(comm, 1);
- }
-
- start[0] = ks;
- start[1] = js;
- start[2] = is;
-
- count[0] = (hsize_t)nck;
- count[1] = (hsize_t)ncj;
- count[2] = (hsize_t)nci;
-
- if( (memspace = H5Screate_simple(3, count, NULL)) < 0) {
-   printf("writehdf5i error: Could not create memory space \n");
-   MPI_Abort(comm, 1);
- };
-
- if( (did = H5Dopen(file_id, varname, H5P_DEFAULT)) < 0) {
-   printf("writehdf5i error: Could not open data space \n");
-   MPI_Abort(comm, 1);
- };
-
- /* Select hyperslab in the file.*/
- filespace = H5Dget_space(did);
- if( H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL ) < 0) {
-   printf("writehdf5i error: Could not select hyperslab \n");
-   MPI_Abort(comm, 1);
- };
-
- /* Create property list for collective dataset write. */
- plist_id = H5Pcreate(H5P_DATASET_XFER);
- H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-
- err = H5Dwrite(did, H5T_NATIVE_FLOAT, memspace, filespace, plist_id, data);
- if( err < 0) {
-   fprintf(stderr, "writehdf5i error: could not write dataset %s \n", varname);
-   MPI_Abort(comm, 1);
- }
-
-
- err = H5Dclose(did);
-
- err = H5Sclose(filespace);
- err = H5Sclose(memspace);
-
- if(H5Pclose(plist_id) < 0)
-   printf("writehdf5i error: Could not close property list \n");
-
- if(H5Fclose(file_id) != 0)
-   printf("writehdf5i error: Could not close HDF5 file \n");
-
+  err = nc_close(ncid); NCERR;
 }

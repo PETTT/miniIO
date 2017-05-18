@@ -15,4 +15,8 @@ void writenci(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
               int ks, int ke, float deltax, float deltay, float deltaz, int nci, int ncj, int nck,
               float *data);
 
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
+
+
+
 #endif

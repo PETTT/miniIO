@@ -19,8 +19,6 @@ static const int fnstrmax = 4095;
 
 #define NCERR {if(err != NC_NOERR) {printf("(rank %d) Error at line %d: %s\n",rank,__LINE__,nc_strerror(err)); fflush(stdout); MPI_Abort(comm,1);}}
 
-#define MAX(a,b) ((a) > (b) ? (a) : (b))
-
 
 /*! Write nci
 
@@ -47,7 +45,6 @@ void writenci(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
   dimlen = MAX(ni,MAX(nj,nk));
   /* Set up MPI info */
   MPI_Info_create(&info);
-  MPI_Info_set(info, "striping_factor", "1");
 
   err = nc_create_par(fname,NC_NETCDF4|NC_MPIIO,comm,info,&ncid); NCERR;
 
@@ -58,7 +55,7 @@ void writenci(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 
   /* Create the dimension, variable. */
 
-  err = nc_def_dim(ncid,"phony_dimension_0",dimlen,&dimid); NCERR;
+  err = nc_def_dim(ncid,"phony_dim_0",dimlen,&dimid); NCERR;
 
   for(int i = 0; i < 3; i++) {
     dimids[i] = dimid;
@@ -67,10 +64,14 @@ void writenci(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
   err = nc_def_var(ncid,varname,NC_FLOAT,3,&dimids[0],&varid); NCERR;
 
   err = nc_enddef(ncid); NCERR;
+  MPI_Barrier(comm);
+
+  /* Set up MPI info */
+  MPI_Info_create(&info);
+  MPI_Info_set(info, "striping_factor", "1");
+
   /* Set up parallel access for the variable. */
   err = nc_var_par_access(ncid,varid,NC_COLLECTIVE); NCERR;
-
-  MPI_Barrier(comm);
 
   start[0] = ks;
   start[1] = js;

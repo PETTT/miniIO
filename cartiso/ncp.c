@@ -12,6 +12,7 @@
 #include <mpi.h>
 #include <inttypes.h>
 
+#include "nccartiso.h"
 #include "netcdf.h"
 #include "netcdf_par.h"
 static const int fnstrmax = 4095;
@@ -72,7 +73,7 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
   /*
    * Create top level dimension, variables.
    */
-  err = nc_def_dim(ncid,"Phony_Dimension_1",NC_UNLIMITED,&var_dim_phony_1); NCERR;
+  err = nc_def_dim(ncid,"phony_dim_1",NC_UNLIMITED,&var_dim_phony_1); NCERR;
   err = nc_def_var(ncid,"conn",NC_UINT64,1,&var_dim_phony_1,&var_id_conn); NCERR;
 
   if(xvals) {
@@ -84,15 +85,14 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
    */
 
   /* Create phony dimension. */
-  err = nc_def_dim(grp_id_grid_pts,"Phony_Dimension_0",NC_UNLIMITED,&var_dim_phony_0); NCERR;
+  err = nc_def_dim(grp_id_grid_pts,"phony_dim_0",NC_UNLIMITED,&var_dim_phony_0); NCERR;
 
   /* Create group variables xyz and normals */
-  err = nc_def_var(grp_id_grid_pts,"xyz",NC_FLOAT,1,&var_dim_phony_0,&var_id_xyz);
   err = nc_def_var(grp_id_grid_pts,"Normals",NC_FLOAT,1,&var_dim_phony_0,&var_id_normals);
+  err = nc_def_var(grp_id_grid_pts,"xyz",NC_FLOAT,1,&var_dim_phony_0,&var_id_xyz);
+
 
   err = nc_enddef(ncid); NCERR;
-
-
 
   MPI_Barrier(comm);
 

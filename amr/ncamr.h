@@ -29,4 +29,6 @@ void nc_finalize(struct ncamrinfo *nfo);
 void nc_init(struct ncamrinfo *nfo, char *name,
 	       MPI_Comm comm, int rank, int nprocs, int tsteps);
 
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
+
 #endif

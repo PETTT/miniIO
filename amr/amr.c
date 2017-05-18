@@ -340,7 +340,7 @@ int main(int argc, char **argv) {
 
 #ifdef HAS_NC
   if(ncout) {
-    nc_finalize(&ncamr_nfo);
+    nc_final(&ncamr_nfo);
   }
 #endif
 

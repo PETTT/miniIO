@@ -11,6 +11,7 @@
 #include "netcdf.h"
 #include "netcdf_par.h"
 
+#define NCERR {if(err != NC_NOERR) {printf("(rank %d) Error at line %d: %s\n",rank,__LINE__,nc_strerror(err)); fflush(stdout); MPI_Abort(nfo->comm,1);}}
 
 static const int fnstrmax = 4095;
 
@@ -54,6 +55,7 @@ void nc_write(struct ncamrinfo *nfo, int tstep, uint64_t cnpoints, float *points
   int *varids;
   int varid;
   int dimid;
+  int rank = nfo->rank;
 
   npts_all = (uint64_t *) malloc(nfo->nprocs * sizeof(uint64_t));
 
@@ -68,13 +70,13 @@ void nc_write(struct ncamrinfo *nfo, int tstep, uint64_t cnpoints, float *points
   for(totalpoints = 0, i = 0; i < nfo->nprocs; ++i)
     totalpoints += npts_all[i];
 
-  err = nc_create_par(fname,NC_NETCDF4|NC_MPIIO,comm,info,&ncid); NCERR;
+  err = nc_create_par(fname,NC_NETCDF4|NC_MPIIO,nfo->comm,info,&ncid); NCERR;
 
   dims[0] = totalpoints;
   count[0] = nfo->nprocs;
 
   err = nc_def_dim(ncid,"phony_dim_0",nfo->nprocs,&dimid); NCERR;
-  err = nc_def_var(ncid,"cnpoints",NC_LONG,1,&dimid,&varid); NCERR;
+  err = nc_def_var(ncid,"cnpoints",NC_UINT64,1,&dimid,&varid); NCERR;
 
   /* A little bit of memory allocation. */
   dimids = (int*)malloc(sizeof(int)*nfo->numxvars);
@@ -84,8 +86,8 @@ void nc_write(struct ncamrinfo *nfo, int tstep, uint64_t cnpoints, float *points
   for(i = 0; i < nfo->numxvars; i++){
 
     /* Define phony dim. */
-    snprintf(dimname,fnstrmax,"phony_dim_%d",i+1);
-    err = nc_def_dim(ncid,dimname,NC_UNLIMITED,&dimids[i]); NCERR;
+    snprintf(dimname,fnstrmax,"phony_dim_%jd",i+1);
+    err = nc_def_dim(ncid,dimname,totalpoints,&dimids[i]); NCERR;
 
     /* Define variable.*/
 
@@ -93,114 +95,37 @@ void nc_write(struct ncamrinfo *nfo, int tstep, uint64_t cnpoints, float *points
     err = nc_var_par_access(ncid,varids[i],NC_COLLECTIVE); NCERR;
   }
 
-
-  //dims[0] = nfo->nprocs;
-  //filespace = H5Screate_simple(1, dims, NULL);
-  err = nc_enddef(ncid); NCERR;
-
-  MPI_Barrier(comm);
-
-  //did = H5Dcreate(file_id, "cnpoints", H5T_NATIVE_ULLONG, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
   err = nc_put_vara_long(ncid,varid,start,count,npts_all); NCERR;
-  //err = H5Dwrite(did, H5T_NATIVE_ULLONG, H5S_ALL, H5S_ALL, H5P_DEFAULT, npts_all);
-
-  /** WRITE ATTRIBUTE INFORMATION **/
 
   attr_data[0] = tstep;
   attr_data[1] = totalpoints;
 
   /* Create the data space for the attribute. */
   dims[0] = 2;
-  filespace = H5Screate_simple(1, dims, NULL);
+  err = nc_put_att(ncid,NC_GLOBAL,"tstep, totalpoints",NC_UINT64,2,attr_data);
 
-  /* Create a dataset attribute. */
-  attr_id = H5Acreate2 (file_id, "tstep, totalpoints", H5T_NATIVE_ULLONG, filespace,
-                        H5P_DEFAULT, H5P_DEFAULT);
+  err = nc_enddef(ncid); NCERR;
 
-  /* Write the attribute data. */
-  err = H5Awrite(attr_id, H5T_NATIVE_ULLONG, attr_data);
+  MPI_Barrier(nfo->comm);
 
-  /* Close the attribute. */
-  err = H5Aclose(attr_id);
-
-  /* Close the dataspace. */
-  err = H5Sclose(filespace);
-
-  /* Close the file */
-  H5Fclose(file_id);
-
-  //} /*rank == 0 */
-
-  /* Set up MPI info */
   MPI_Info_create(&info);
   MPI_Info_set(info, "striping_factor", "1");
 
-  /* Set up file access property list with parallel I/O access */
-  if( (plist_id = H5Pcreate(H5P_FILE_ACCESS)) < 0) {
-    printf("hdf5 error: Could not create property list \n");
-    MPI_Abort(nfo->comm, 1);
+  MPI_Barrier(nfo->comm);
+
+  for(start[0] = 0, i = 0; i < nfo->rank; ++i) {
+    start[0] += (size_t)npts_all[i];
   }
 
-  H5Pset_libver_bounds(plist_id, H5F_LIBVER_LATEST, H5F_LIBVER_LATEST);
+  count[0] = (size_t)(cnpoints);
 
-  if(H5Pset_fapl_mpio(plist_id, MPI_COMM_WORLD, info) < 0) {
-    printf("hdf5 error: Could not create property list \n");
-    MPI_Abort(nfo->comm, 1);
+  /* Create property list for collective dataset write. */
+  for(i = 0; i < nfo->numxvars; i++){
+    err = nc_put_vara_float(ncid,varids[i],start,count,xvals[i]); NCERR;
   }
 
   MPI_Barrier(nfo->comm);
-  if( (file_id = H5Fopen(fname, H5F_ACC_RDWR, plist_id)) < 0) {
-    fprintf(stderr, "writehdf5p error: could not open %s \n", fname);
-    MPI_Abort(nfo->comm, 1);
-  }
-
-  if(H5Pclose(plist_id) < 0) {
-    printf("hdf5 error: Could not close property list \n");
-    MPI_Abort(nfo->comm, 1);
-  }
-  for(start[0] = 0, i = 0; i < nfo->rank; ++i) {
-    start[0] += (hsize_t)npts_all[i];
-  }
-
-  count[0] = (hsize_t)(cnpoints);
-
-  memspace = H5Screate_simple(1, count, NULL);
-
-  /* Create property list for collective dataset write. */
-  plist_id = H5Pcreate(H5P_DATASET_XFER);
-  H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-
-  for(i = 0; i < nfo->numxvars; i++){
-
-    did = H5Dopen(file_id, nfo->xvarnames[i], H5P_DEFAULT);
-
-    /*
-     * Each process defines dataset in memory and writes it to the hyperslab
-     * in the file.
-     */
-
-    /* Select hyperslab in the file.*/
-    filespace = H5Dget_space(did);
-    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, NULL );
-
-    err = H5Dwrite(did, H5T_NATIVE_FLOAT, memspace, filespace, plist_id, xvals[i]);
-
-    if( err < 0) {
-      fprintf(stderr, "hdf5 error: could not write datset %s \n", nfo->xvarnames[i]);
-      MPI_Abort(nfo->comm, 1);
-    }
-
-    err = H5Dclose(did);
-  }
-
-  if(H5Sclose(memspace)  != 0)
-    printf("hdf5 error: Could not close memory space \n");
-
-  if(H5Pclose(plist_id) < 0)
-    printf("hdf5 error: Could not close property list \n");
-
-  if(H5Fclose(file_id) != 0)
-    printf("hdf5 error: Could not close HDF5 file \n");
+  nc_close(ncid); NCERR;
 
   free(npts_all);
   free(dimids);
@@ -208,6 +133,6 @@ void nc_write(struct ncamrinfo *nfo, int tstep, uint64_t cnpoints, float *points
 
 }
 
-void nc_finalize(struct ncamrinfo *nfo) {
+void nc_final(struct ncamrinfo *nfo) {
   free(nfo->xvarnames);
 }

@@ -1,0 +1,22 @@
+break nc_write
+run --tasks 2 2 2 --size 9 9 9 --levels 3 --tsteps 1 --nc
+
+#break ncp.c:127
+#break nci.c:56
+#break ncp.c:142 if tstep == 4
+#commands
+#print rank
+#print count
+#end
+#run --tasks 2 2 2 --size 256 256 256 --sigma 0.29 0.29 0.29 --centertask --freq 2 2 2 --tsteps 20 --sin2gauss --ncp
+
+
+#break main
+#break netcdfstruct.c:125
+#break nc4_put_vara
+#commands
+#watch retval
+#continue
+#end
+#break nc4hdf.c:824
+#break main

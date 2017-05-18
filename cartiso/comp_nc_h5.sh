@@ -22,9 +22,5 @@ ncdump $2 > tmpb.txt
 echo "Comparing"
 diff tmpa.txt tmpb.txt
 
-echo "Cleaning up"
-rm -f tmpa.txt
-rm -f tmpb.txt
-
 echo ""
 echo "Finished"

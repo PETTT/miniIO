@@ -6,7 +6,8 @@ if [ "$1" == adios ];then
     output="--pvti --pvtp"
     output="--adiosfull MPI"
 elif [ "$1" == nc ]; then
-    output="--nci --ncp"
+#    output="--nci --ncp"
+    output="--ncp"
 else
     if [ "$1" == hdf5 ];then
         output="--hdf5i --hdf5p --hdf5i_chunk 256 256 256 --hdf5p_chunk 100"

@@ -1,6 +1,11 @@
-break ncp.c:127
-break nci.c:56
-run --tasks 2 2 2 --size 256 256 256 --sigma 0.29 0.29 0.29 --centertask --freq 2 2 2 --tsteps 20 --sin2gauss --nci --ncp
+#break ncp.c:127
+#break nci.c:56
+break ncp.c:142 if tstep == 4
+commands
+print rank
+print count
+end
+run --tasks 2 2 2 --size 256 256 256 --sigma 0.29 0.29 0.29 --centertask --freq 2 2 2 --tsteps 20 --sin2gauss --ncp
 
 
 #break main

@@ -121,7 +121,9 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
   }
 
   count[0] = (size_t)ntris*9;
-  err = nc_put_vara_float(grp_id_grid_pts,var_id_xyz,start,count,points); NCERR;
+  //if(count[0] != 0) {
+    err = nc_put_vara_float(grp_id_grid_pts,var_id_xyz,start,count,points); NCERR;
+    //}
 
   /* End XYZ */
 
@@ -132,24 +134,24 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
   /* Normals */
   start[0] = 0;
   for (j=0; j<rank; j++) {
-    start[0] = start[0] + 3*rntris[j];
+    start[0] = start[0] + 9*rntris[j];
   }
 
-  count[0] = (size_t)ntris*3;
-
-  err = nc_put_vara_float(grp_id_grid_pts,var_id_normals,start,count,norms); NCERR;
+  count[0] = (size_t)ntris*9;
+  //if(count[0] != 0) {
+    err = nc_put_vara_float(grp_id_grid_pts,var_id_normals,start,count,norms); NCERR;
+    //}
 
   /* End Normals */
 
-  /* Conn */
+  /* temparr */
   /*
    * Each process defines dataset in memory and writes it to the hyperslab
    * in the file.
    */
 
-  count[0] = (size_t)ntris*3;
-
   /* Select hyperslab in the file.*/
+  count[0] = (size_t)ntris*3;
   temparr = (uint64_t *) malloc(ntris*3*sizeof(uint64_t));
 
   start[0] = 0;
@@ -160,18 +162,23 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
   for(j = 0; j < ntris*3; j++)
     temparr[j] = start[0] + j;
 
-  err = nc_put_vara_long(ncid,var_id_conn,start,count,temparr); NCERR;
-
-  /* End Conn */
+  //if(count[0] != 0) {
+    err = nc_put_vara_long(ncid,var_id_conn,start,count,temparr); NCERR;
+    //}
+  /* End temparr */
 
 
   /* xvals */
   if(xvals) {
 
     start[0] = 0;
+    for (j=0; j<rank; j++) {
+      start[0] = start[0] + 3*rntris[j];
+    }
     count[0] = (size_t)ntris*3;
-
+    //if(count[0] != 0) {
     err = nc_put_vara_float(ncid,var_id_xname,start,count,xvals);
+    //}
   }
   /* End xvals */
 

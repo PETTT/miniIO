@@ -88,9 +88,9 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
   timer_tick(&createfile, comm, 0);
 #endif
 
-  if(rank==0) {
-    //err = nc_create_par(fname,NC_NETCDF4|NC_MPIIO,comm,info,&ncid); NCERR;
-    err = nc_create(fname,NC_NETCDF4,&ncid); NCERR;
+  // if(rank==0) {
+    err = nc_create_par(fname,NC_NETCDF4|NC_MPIIO,comm,info,&ncid); NCERR;
+    //err = nc_create(fname,NC_NETCDF4,&ncid); NCERR;
   //if(rank == 0) {
 
 
@@ -152,11 +152,11 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
   } /* if data & varname */
 
   err = nc_enddef(ncid); NCERR;
-  err = nc_close(ncid);
-  } /* Rank == 0 */
+
+  //  } /* Rank == 0 */
 
   MPI_Barrier(MPI_COMM_WORLD);
-  err = nc_open_par(fname,NC_NETCDF4|NC_MPIIO,comm,info,&ncid);
+
 
 
 #ifdef TIMEIO

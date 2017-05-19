@@ -1,3 +1,3 @@
-break ncunstruct.c:155
+break ncunstruct.c:204
 break writenc
 run --points 24 --nc

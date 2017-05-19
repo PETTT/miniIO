@@ -9,9 +9,11 @@
 
 #include <pdirs.h>
 
+#include "netcdf.h"
+#include "netcdf_par.h"
 #include "ncunstruct.h"
 
-#define TIMEIO
+//#define TIMEIO
 
 static const int fnstrmax = 4095;
 
@@ -44,14 +46,13 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
   int phony_dim_2_id;
   int phony_dim_3_id;
 
-  int xyz_ids[3] = {0,0,0}
+  int xyz_ids[3] = {0,0,0};
 
   int err = 0;
 
   size_t start[1] = {0};
   size_t count[1] = {0};
 
-  size_t block = NULL, *pblock=NULL;
   size_t dims[1] = {0};
 
 
@@ -87,7 +88,7 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
   timer_tick(&createfile, comm, 0);
 #endif
 
-  if(rank==0) {
+  //if(rank==0) {
 
 
     err = nc_create_par(fname,NC_NETCDF4|NC_MPIIO,comm,info,&ncid); NCERR;
@@ -102,14 +103,14 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
 
       /* Create Grid Group */
       err = nc_def_grp(ncid,"grid points",&grid_id); NCERR;
-      err = nc_def_dim(grid_id,"phony_dim_0",NC_UNLIMITED,&phony_dim_0_id); NCERR;
+      err = nc_def_dim(grid_id,"phony_dim_0",dims[0],&phony_dim_0_id); NCERR;
       err = nc_def_var(grid_id,"x",NC_FLOAT,1,&phony_dim_0_id,&xyz_ids[0]); NCERR;
       err = nc_def_var(grid_id,"y",NC_FLOAT,1,&phony_dim_0_id,&xyz_ids[1]); NCERR;
       err = nc_def_var(grid_id,"z",NC_FLOAT,1,&phony_dim_0_id,&xyz_ids[2]); NCERR;
 
-      err = nc_var_par_access(grp_id,xyz_ids[0]); NCERR;
-      err = nc_var_par_access(grp_id,xyz_ids[1]); NCERR;
-      err = nc_var_par_access(grp_id,xyz_ids[2]); NCERR;
+      err = nc_var_par_access(grid_id,xyz_ids[0],NC_COLLECTIVE); NCERR;
+      err = nc_var_par_access(grid_id,xyz_ids[1],NC_COLLECTIVE); NCERR;
+      err = nc_var_par_access(grid_id,xyz_ids[2],NC_COLLECTIVE); NCERR;
 
     } /* if x,y,z */
 
@@ -121,11 +122,10 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
 
       /* Create the dataspace for the dataset. */
       dims[0] = (size_t)nelems_out[0]*6;
-      err = nc_def_dim(ncid,"phony_dim_3",NC_UNLIMITED,&phony_dim_3_id); NCERR;
+      err = nc_def_dim(ncid,"phony_dim_3",dims[0],&phony_dim_3_id); NCERR;
 
       err = nc_def_var(ncid,"conns3",NC_UINT64,1,&phony_dim_3_id,&conns3id); NCERR;
       err = nc_var_par_access(ncid,conns3id,NC_COLLECTIVE); NCERR;
-      /* Create the dataset with default properties and close filespace. */
 
     } /* if conns & nelems3 */
 
@@ -135,27 +135,27 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
       /* Create the dataspace for the dataset. */
       dims[0] = (size_t)nelems_out[1]*3;
 
-      err = nc_def_dim(ncid,"phony_dim_2",NC_UNLIMITED,&phony_dim_2_id); NCERR;
-
-      //filespace = H5Screate_simple(1, dims, NULL);
-
-      /* Create the dataset with default properties and close filespace. */
-      err = nc_def_var(ncid,"conns2",NC_UINT64,1,&phony_dim_2_id,&conns2id); NCERR;
+      err = nc_def_dim(ncid,"phony_dim_1",dims[0],&phony_dim_1_id); NCERR;
+      err = nc_def_var(ncid,"conns2",NC_UINT64,1,&phony_dim_1_id,&conns2id); NCERR;
       err = nc_var_par_access(ncid,conns2id,NC_COLLECTIVE); NCERR;
+
     } /* if conns2 & nelems2 */
 
     /* Optional variable data, starting with number of variables */
     if(data && varname) {
       /* Create the dataspace for the dataset. */
-      dims[0] = (hsize_t)npoints;
-      err = nc_def_dim(ncid,"phony_dim_1",NC_UNLIMITED,&phony_dim_1_id); NCERR;
-      err = nc_def_var(ncid,varname,NC_FLOAT,1,&phony_dim_1_id,&varsid);
+      dims[0] = (size_t)npoints;
+      err = nc_def_dim(ncid,"phony_dim_2",dims[0],&phony_dim_2_id); NCERR;
+      err = nc_def_var(ncid,"vars",NC_FLOAT,1,&phony_dim_2_id,&varsid);
       err = nc_var_par_access(ncid,varsid,NC_COLLECTIVE); NCERR;
     } /* if data & varname */
 
-  } /* Rank == 0 */
-  err = nc_enddef(ncid); NCERR;
-  MPI_Barrier(MPI_COMM_WORLD);
+    //} /* Rank == 0 */
+
+    err = nc_enddef(ncid); NCERR;
+    MPI_Barrier(MPI_COMM_WORLD);
+
+
 
 #ifdef TIMEIO
   timer_tock(&createfile);
@@ -180,7 +180,6 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
      */
     start[0] =(size_t)(nptstask*rank);
     count[0] =(size_t)nptstask;
-    memspace = H5Screate_simple(1, count, NULL);
 
     err = nc_put_vara_float(grid_id,xyz_ids[0],start,count,xpts); NCERR;
     err = nc_put_vara_float(grid_id,xyz_ids[1],start,count,ypts); NCERR;
@@ -198,10 +197,10 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
      * Each process defines dataset in memory and writes it to the hyperslab
      * in the file.
      */
-    start[0] =(hsize_t)(nelems3*6*rank);
-    count[0] =(hsize_t)nelems3*6;
+    start[0] =(size_t)(nelems3*6*rank);
+    count[0] =(size_t)nelems3*6;
 
-    err = nc_put_vara_ulonglong(phony_dim_3_id,conns3id,start,count,conns3); NCERR;
+    err = nc_put_vara(ncid,conns3id,start,count,conns3); NCERR;
 
   }
 
@@ -211,10 +210,10 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
      * Each process defines dataset in memory and writes it to the hyperslab
      * in the file.
      */
-    start[0] =(hsize_t)(nelems2*3*rank);
-    count[0] =(hsize_t)nelems2*3;
+    start[0] =(size_t)(nelems2*3*rank);
+    count[0] =(size_t)nelems2*3;
 
-    err = nc_put_vara_ulonglong(phony_dim_3_id,conns3id,start,count,conns3); NCERR;
+    err = nc_put_vara(ncid,conns2id,start,count,conns2); NCERR;
   }
 
   /* Optional variable data, starting with number of variables */
@@ -224,8 +223,8 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
      * Each process defines dataset in memory and writes it to the hyperslab
      * in the file.
      */
-    start[0] =(hsize_t)(nptstask*rank);
-    count[0] =(hsize_t)nptstask;
+    start[0] =(size_t)(nptstask*rank);
+    count[0] =(size_t)nptstask;
 
     err = nc_put_vara_float(ncid,varsid,start,count,data); NCERR;
   }
@@ -238,8 +237,7 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
 #ifdef TIMEIO
   timer_tick(&postwrite, comm, 0);
 #endif
-  if(H5Fclose(file_id) != 0)
-    printf("writehdf5 error: Could not close HDF5 file \n");
+
 #ifdef TIMEIO
   timer_tock(&postwrite);
   timer_collectprintstats(postwrite, comm, 0, "PostWrite");

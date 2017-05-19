@@ -9,3 +9,5 @@ rm -f *.xmf
 rm -f *.nc
 rm -f *~
 rm -f *.vtk
+rm -rf unstruct.hdf5.d
+rm -rf unstruct.nc.d

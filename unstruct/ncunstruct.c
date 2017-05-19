@@ -15,6 +15,8 @@
 
 static const int fnstrmax = 4095;
 
+#define NCERR {if(err != NC_NOERR) {printf("(rank %d) Error at line %d: %s\n",rank,__LINE__,nc_strerror(err)); fflush(stdout); MPI_Abort(comm,1);}}
+
 uint64_t nelems_in[2];
 uint64_t nelems_out[2];
 
@@ -31,14 +33,27 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
   int timedigits = 4;
   MPI_Info info = MPI_INFO_NULL;
 
+  int conns3id;
+  int conns2id;
   int ncid;
+  int grid_id;
+  int varsid;
+
+  int phony_dim_0_id;
+  int phony_dim_1_id;
+  int phony_dim_2_id;
+  int phony_dim_3_id;
+
+  int xyz_ids[3] = {0,0,0}
+
   int err = 0;
 
   size_t start[1] = {0};
   size_t count[1] = {0};
 
   size_t block = NULL, *pblock=NULL;
-  size_t dims[1] - {0};
+  size_t dims[1] = {0};
+
 
   int chunk_pid;
   size_t chunk;
@@ -47,9 +62,9 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
   /* Make dir for all output and subdir for timestep */
-  snprintf(dirname, fnstrmax, "%s.hdf5.d", name);
+  snprintf(dirname, fnstrmax, "%s.nc.d", name);
   mkdir1task(dirname, comm);
-  snprintf(dirname, fnstrmax, "%s.hdf5.d/t%0*d.d", name, timedigits, tstep);
+  snprintf(dirname, fnstrmax, "%s.nc.d/t%0*d.d", name, timedigits, tstep);
   mkdir1task(dirname, comm);
 
   /* Set up MPI info */
@@ -58,9 +73,9 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
 
   chkdir1task(dirname, comm);
 
-  snprintf(fname, fnstrmax, "unstruct.hdf5.d/t%0*d.d/r.h5", timedigits, tstep);
-  snprintf(rel_fname, fnstrmax, "t%0*d.d/r.h5", timedigits, tstep);
-  snprintf(fname_xdmf, fnstrmax, "unstruct.hdf5.d/t%0*d.d.xmf", timedigits, tstep);
+  snprintf(fname, fnstrmax, "unstruct.nc.d/t%0*d.d/r.nc", timedigits, tstep);
+  snprintf(rel_fname, fnstrmax, "t%0*d.d/r.nc", timedigits, tstep);
+  snprintf(fname_xdmf, fnstrmax, "unstruct.nc.d/t%0*d.d.xmf", timedigits, tstep);
 
   nelems_in[0] = nelems3 ;
   nelems_in[1] = nelems2 ;
@@ -74,85 +89,29 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
 
   if(rank==0) {
 
-    /* Create xdmf file for timestep */
-    write_xdmf_xml(rel_fname, fname_xdmf, npoints);
 
-    /* Set up file access property list with parallel I/O access */
-    if( (plist_id = H5Pcreate(H5P_FILE_ACCESS)) < 0) {
-      printf("writehdf5 error: Could not create property list \n");
-      MPI_Abort(comm, 1);
-    }
+    err = nc_create_par(fname,NC_NETCDF4|NC_MPIIO,comm,info,&ncid); NCERR;
 
-    H5Pset_libver_bounds(plist_id, H5F_LIBVER_LATEST, H5F_LIBVER_LATEST);
-    H5Pset_fclose_degree(plist_id,H5F_CLOSE_WEAK);
-
-    if( (file_id = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id)) < 0) {
-      fprintf(stderr, "writehdf5 error: could not open %s \n", fname);
-      MPI_Abort(comm, 1);
-    }
-
-    if(H5Pclose(plist_id) < 0) {
-      printf("writehdf5 error: Could not close property list \n");
-      MPI_Abort(comm, 1);
-    }
 
     /* Optional grid points */
     if(xpts && ypts && zpts) {
       /* Create the dataspace for the dataset. */
-      dims[0] = (hsize_t)npoints;
-      count[0] =(hsize_t)nptstask;
-      filespace = H5Screate_simple(1, dims, NULL);
-
-      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
-      if(h5_chunk) {
-        if(h5_chunk[0] != 0) {
-          block = 1;
-          pblock = &block;
-          H5Pset_layout(chunk_pid, H5D_CHUNKED);
-          if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0 ) {
-            printf("writehdf5 error: Could not set fill time\n");
-            MPI_Abort(comm, 1);
-          }
-          if(count[0]%h5_chunk[0] == 0) {
-            chunk = count[0]/h5_chunk[0];
-          } else {
-            printf("writehdf5 error: nptstask not evenly divisible by chunk size [0] \n");
-            MPI_Abort(comm, 1);
-          }
-          H5Pset_chunk(chunk_pid, 1, &chunk);
-
-          if(hdf5_compress == 1) {
-
-            /* Set ZLIB / DEFLATE Compression using compression level 6. */
-            H5Pset_deflate (chunk_pid, 6);
-
-            /* Uncomment these lines to set SZIP Compression
-               szip_options_mask = H5_SZIP_NN_OPTION_MASK;
-               szip_pixels_per_block = 16;
-               status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
-            */
-          }
-        }
-      }
+      dims[0] = (size_t)npoints;
+      count[0] =(size_t)nptstask;
+      //filespace = H5Screate_simple(1, dims, NULL);
 
       /* Create Grid Group */
-      group_id = H5Gcreate(file_id, "grid points", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      err = nc_def_grp(ncid,"grid points",&grid_id); NCERR;
+      err = nc_def_dim(grid_id,"phony_dim_0",NC_UNLIMITED,&phony_dim_0_id); NCERR;
+      err = nc_def_var(grid_id,"x",NC_FLOAT,1,&phony_dim_0_id,&xyz_ids[0]); NCERR;
+      err = nc_def_var(grid_id,"y",NC_FLOAT,1,&phony_dim_0_id,&xyz_ids[1]); NCERR;
+      err = nc_def_var(grid_id,"z",NC_FLOAT,1,&phony_dim_0_id,&xyz_ids[2]); NCERR;
 
-      /* Create the dataset with default properties and close filespace. */
-      did[0] = H5Dcreate(group_id, "x", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
-      did[1] = H5Dcreate(group_id, "y", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
-      did[2] = H5Dcreate(group_id, "z", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
-      H5Sclose(filespace);
+      err = nc_var_par_access(grp_id,xyz_ids[0]); NCERR;
+      err = nc_var_par_access(grp_id,xyz_ids[1]); NCERR;
+      err = nc_var_par_access(grp_id,xyz_ids[2]); NCERR;
 
-      err = H5Dclose(did[0]);
-      err = H5Dclose(did[1]);
-      err = H5Dclose(did[2]);
-
-      err = H5Gclose(group_id);
-
-      if(h5_chunk)
-        H5Pclose(chunk_pid);
-    }
+    } /* if x,y,z */
 
 
     /* MSB is it possible that some processors have 0? */
@@ -161,185 +120,49 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
     if(conns3 && nelems3) {
 
       /* Create the dataspace for the dataset. */
-      dims[0] = (hsize_t)nelems_out[0]*6;
-      filespace = H5Screate_simple(1, dims, NULL);
+      dims[0] = (size_t)nelems_out[0]*6;
+      err = nc_def_dim(ncid,"phony_dim_3",NC_UNLIMITED,&phony_dim_3_id); NCERR;
 
-      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
-      if(h5_chunk) {
-        if(h5_chunk[2] != 0) {
-          block = 1;
-          pblock = &block;
-          count[0] =(hsize_t)nelems3*6;
-
-          H5Pset_layout(chunk_pid, H5D_CHUNKED);
-          if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0 ) {
-            printf("writehdf5 error: Could not set fill time\n");
-            MPI_Abort(comm, 1);
-          }
-          if(count[0]%h5_chunk[2] == 0) {
-            chunk = count[0]/h5_chunk[2];
-          } else {
-            printf("writehdf5 error: conns3 not evenly divisible by chunk size [2] \n");
-            MPI_Abort(comm, 1);
-          }
-          H5Pset_chunk(chunk_pid, 1, &chunk);
-          if(hdf5_compress == 1) {
-
-            /* Set ZLIB / DEFLATE Compression using compression level 6. */
-            H5Pset_deflate (chunk_pid, 6);
-
-            /* Uncomment these lines to set SZIP Compression
-               szip_options_mask = H5_SZIP_NN_OPTION_MASK;
-               szip_pixels_per_block = 16;
-               status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
-            */
-          }
-        }
-      }
-
+      err = nc_def_var(ncid,"conns3",NC_UINT64,1,&phony_dim_3_id,&conns3id); NCERR;
+      err = nc_var_par_access(ncid,conns3id,NC_COLLECTIVE); NCERR;
       /* Create the dataset with default properties and close filespace. */
-      did[0] = H5Dcreate(file_id, "conns3", H5T_NATIVE_ULLONG, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
-      H5Sclose(filespace);
 
-      err = H5Dclose(did[0]);
-
-      if(h5_chunk)
-        H5Pclose(chunk_pid);
-
-    }
+    } /* if conns & nelems3 */
 
     /* Optional 2D surface triangle connections, writes a 64-bit 0 if none */
     if(conns2 && nelems2) {
 
       /* Create the dataspace for the dataset. */
-      dims[0] = (hsize_t)nelems_out[1]*3;
-      filespace = H5Screate_simple(1, dims, NULL);
+      dims[0] = (size_t)nelems_out[1]*3;
 
-      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
-      if(h5_chunk) {
-        if(h5_chunk[1] != 0) {
-          block = 1;
-          pblock = &block;
-          count[0] =(hsize_t)nelems2*3;
-          H5Pset_layout(chunk_pid, H5D_CHUNKED);
-          if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0 ) {
-            printf("writehdf5 error: Could not set fill time\n");
-            MPI_Abort(comm, 1);
-          }
-          if(count[0]%h5_chunk[1] == 0) {
-            chunk = count[0]/h5_chunk[1];
-          } else {
-            printf("writehdf5 error: conns2 not evenly divisible by chunk size [1] \n");
-            MPI_Abort(comm, 1);
-          }
-          H5Pset_chunk(chunk_pid, 1, &chunk);
-          if(hdf5_compress == 1) {
+      err = nc_def_dim(ncid,"phony_dim_2",NC_UNLIMITED,&phony_dim_2_id); NCERR;
 
-            /* Set ZLIB / DEFLATE Compression using compression level 6. */
-            H5Pset_deflate (chunk_pid, 6);
-
-            /* Uncomment these lines to set SZIP Compression
-               szip_options_mask = H5_SZIP_NN_OPTION_MASK;
-               szip_pixels_per_block = 16;
-               status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
-            */
-          }
-        }
-      }
+      //filespace = H5Screate_simple(1, dims, NULL);
 
       /* Create the dataset with default properties and close filespace. */
-      did[0] = H5Dcreate(file_id, "conns2", H5T_NATIVE_ULLONG, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
-      H5Sclose(filespace);
-      err = H5Dclose(did[0]);
-      if(h5_chunk)
-        H5Pclose(chunk_pid);
-    }
+      err = nc_def_var(ncid,"conns2",NC_UINT64,1,&phony_dim_2_id,&conns2id); NCERR;
+      err = nc_var_par_access(ncid,conns2id,NC_COLLECTIVE); NCERR;
+    } /* if conns2 & nelems2 */
 
     /* Optional variable data, starting with number of variables */
     if(data && varname) {
       /* Create the dataspace for the dataset. */
       dims[0] = (hsize_t)npoints;
-      filespace = H5Screate_simple(1, dims, NULL);
+      err = nc_def_dim(ncid,"phony_dim_1",NC_UNLIMITED,&phony_dim_1_id); NCERR;
+      err = nc_def_var(ncid,varname,NC_FLOAT,1,&phony_dim_1_id,&varsid);
+      err = nc_var_par_access(ncid,varsid,NC_COLLECTIVE); NCERR;
+    } /* if data & varname */
 
-      chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
-      if(h5_chunk) {
-        if(h5_chunk[0] != 0) {
-          block = 1;
-          pblock = &block;
-          count[0] =(hsize_t)nptstask;
-          H5Pset_layout(chunk_pid, H5D_CHUNKED);
-          if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0) {
-            printf("writehdf5 error: Could not set fill time\n");
-            MPI_Abort(comm, 1);
-          }
-          if(count[0]%h5_chunk[0] == 0) {
-            chunk = count[0]/h5_chunk[0];
-          } else {
-            printf("writehdf5 error: nptstask not evenly divisible by chunk size [0] \n");
-            MPI_Abort(comm, 1);
-          }
-          H5Pset_chunk(chunk_pid, 1, &chunk);
-          if(hdf5_compress == 1) {
-
-            /* Set ZLIB / DEFLATE Compression using compression level 6. */
-            H5Pset_deflate (chunk_pid, 6);
-
-            /* Uncomment these lines to set SZIP Compression
-               szip_options_mask = H5_SZIP_NN_OPTION_MASK;
-               szip_pixels_per_block = 16;
-               status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
-            */
-          }
-        }
-      }
-
-      /* Create the dataset with default properties and close filespace. */
-      did[0] = H5Dcreate(file_id, "vars", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
-      H5Sclose(filespace);
-
-      if(H5Dclose(did[0]) ){
-        printf("writehdf5 error: Could not close HDF5 data space \n");
-        MPI_Abort(comm, 1);
-      }
-      if(h5_chunk)
-        H5Pclose(chunk_pid);
-
-    }
-
-    if(H5Fclose(file_id) != 0)
-      printf("writehdf5 error: Could not close HDF5 file \n");
-  }
-
+  } /* Rank == 0 */
+  err = nc_enddef(ncid); NCERR;
   MPI_Barrier(MPI_COMM_WORLD);
+
 #ifdef TIMEIO
   timer_tock(&createfile);
   timer_collectprintstats(createfile, comm, 0, "CreateFile");
   timer_tick(&prewrite, comm, 0);
 #endif
 
-  /* Set up file access property list with parallel I/O access */
-  if( (plist_id = H5Pcreate(H5P_FILE_ACCESS)) < 0) {
-    printf("writehdf5 error: Could not create property list \n");
-    MPI_Abort(comm, 1);
-  }
-
-  H5Pset_libver_bounds(plist_id, H5F_LIBVER_LATEST, H5F_LIBVER_LATEST);
-
-  H5Pset_fclose_degree(plist_id,H5F_CLOSE_WEAK);
-  if(H5Pset_fapl_mpio(plist_id, MPI_COMM_WORLD, info) < 0) {
-    printf("writehdf5 error: Could not create property list \n");
-    MPI_Abort(comm, 1);
-  }
-
-  if( (file_id = H5Fopen(fname, H5F_ACC_RDWR, plist_id)) < 0) {
-    fprintf(stderr, "writehdf5 error: could not open %s \n", fname);
-    MPI_Abort(comm, 1);
-  }
-
-  if(H5Pclose(plist_id) < 0) {
-    printf("writehdf5 error: Could not close property list \n");
-    MPI_Abort(comm, 1);
-  }
 #ifdef TIMEIO
   timer_tock(&prewrite);
   timer_collectprintstats(prewrite, comm, 0, "PreWrite");
@@ -355,53 +178,21 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
      * Each process defines dataset in memory and writes it to the hyperslab
      * in the file.
      */
-    start[0] =(hsize_t)(nptstask*rank);
-    count[0] =(hsize_t)nptstask;
+    start[0] =(size_t)(nptstask*rank);
+    count[0] =(size_t)nptstask;
     memspace = H5Screate_simple(1, count, NULL);
 
-    if(h5_chunk) {
-      if(h5_chunk[0] != 0) {
-        block = 1;
-        pblock = &block;
-      }
-    }
+    err = nc_put_vara_float(grid_id,xyz_ids[0],start,count,xpts); NCERR;
+    err = nc_put_vara_float(grid_id,xyz_ids[1],start,count,ypts); NCERR;
+    err = nc_put_vara_float(grid_id,xyz_ids[2],start,count,zpts); NCERR;
 
-    /* Create the dataset with default properties and close filespace. */
-    did[0] = H5Dopen(file_id, "/grid points/x", H5P_DEFAULT);
-    did[1] = H5Dopen(file_id, "/grid points/y", H5P_DEFAULT);
-    did[2] = H5Dopen(file_id, "/grid points/z", H5P_DEFAULT);
-
-    /* Select hyperslab in the file.*/
-    filespace = H5Dget_space(did[0]);
-    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, pblock );
-
-    /* Create property list for collective dataset write. */
-    plist_id = H5Pcreate(H5P_DATASET_XFER);
-    H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-
-    err = H5Dwrite (did[0], H5T_NATIVE_FLOAT, memspace, filespace, plist_id, xpts);
-    err = H5Dwrite (did[1], H5T_NATIVE_FLOAT, memspace, filespace, plist_id, ypts);
-    err = H5Dwrite (did[2], H5T_NATIVE_FLOAT, memspace, filespace, plist_id, zpts);
-
-    err = H5Dclose(did[0]);
-    err = H5Dclose(did[1]);
-    err = H5Dclose(did[2]);
-
-    err = H5Sclose(filespace);
-    err = H5Sclose(memspace);
-
-    if(H5Pclose(plist_id) < 0)
-      printf("writehdf5 error: Could not close property list \n");
-  }
+  } /* if x,y,z pts */
 
 
   /* MSB is it possible that some processors have 0? */
 
   /* Optional grid connections, writes a 64-bit 0 if no connections */
   if(conns3 && nelems3) {
-
-    /* Create the dataspace for the dataset. */
-    did[0] = H5Dopen(file_id, "conns3", H5P_DEFAULT);
 
     /*
      * Each process defines dataset in memory and writes it to the hyperslab
@@ -410,37 +201,12 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
     start[0] =(hsize_t)(nelems3*6*rank);
     count[0] =(hsize_t)nelems3*6;
 
-    if(h5_chunk) {
-      if(h5_chunk[2] != 0) {
-        block = 1;
-        pblock = &block;
-      }
-    }
-
-    memspace = H5Screate_simple(1, count, NULL);
-
-    /* Select hyperslab in the file.*/
-    filespace = H5Dget_space(did[0]);
-    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, pblock );
-
-    /* Create property list for collective dataset write. */
-    plist_id = H5Pcreate(H5P_DATASET_XFER);
-    H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-    err = H5Dwrite (did[0], H5T_NATIVE_ULLONG, memspace, filespace, plist_id, conns3);
-
-    err = H5Dclose(did[0]);
-
-    err = H5Sclose(filespace);
-    err = H5Sclose(memspace);
-    if(H5Pclose(plist_id) < 0)
-      printf("writehdf5 error: Could not close property list \n");
+    err = nc_put_vara_ulonglong(phony_dim_3_id,conns3id,start,count,conns3); NCERR;
 
   }
 
   /*     Optional 2D surface triangle connections, writes a 64-bit 0 if none */
   if(conns2 && nelems2) {
-    did[0] = H5Dopen(file_id, "conns2", H5P_DEFAULT);
-
     /*
      * Each process defines dataset in memory and writes it to the hyperslab
      * in the file.
@@ -448,30 +214,7 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
     start[0] =(hsize_t)(nelems2*3*rank);
     count[0] =(hsize_t)nelems2*3;
 
-    if(h5_chunk) {
-      if(h5_chunk[1] != 0) {
-        block = 1;
-        pblock = &block;
-      }
-    }
-
-    memspace = H5Screate_simple(1, count, NULL);
-
-    /* Select hyperslab in the file.*/
-    filespace = H5Dget_space(did[0]);
-    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, pblock );
-
-    /* Create property list for collective dataset write. */
-    plist_id = H5Pcreate(H5P_DATASET_XFER);
-    H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-    err = H5Dwrite (did[0], H5T_NATIVE_ULLONG, memspace, filespace, plist_id, conns3);
-
-    err = H5Dclose(did[0]);
-    err = H5Sclose(filespace);
-    err = H5Sclose(memspace);
-    if(H5Pclose(plist_id) < 0)
-      printf("writehdf5 error: Could not close property list \n");
-
+    err = nc_put_vara_ulonglong(phony_dim_3_id,conns3id,start,count,conns3); NCERR;
   }
 
   /* Optional variable data, starting with number of variables */
@@ -484,45 +227,9 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
     start[0] =(hsize_t)(nptstask*rank);
     count[0] =(hsize_t)nptstask;
 
-    if(h5_chunk) {
-      if(h5_chunk[0] != 0) {
-        block = 1;
-        pblock = &block;
-      }
-    }
-
-    /* Create the dataset with default properties and close filespace. */
-    did[0] = H5Dopen(file_id, "vars", H5P_DEFAULT);
-
-    memspace = H5Screate_simple(1, count, NULL);
-
-    /* Select hyperslab in the file.*/
-    filespace = H5Dget_space(did[0]);
-    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count, pblock );
-
-    /* Create property list for collective dataset write. */
-    plist_id = H5Pcreate(H5P_DATASET_XFER);
-    H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-    if(H5Dwrite (did[0], H5T_NATIVE_FLOAT, memspace, filespace, plist_id, data) < 0) {
-      printf("writehdf5 error: Could not write HDF5 file \n");
-      MPI_Abort(comm, 1);
-    }
-    if(H5Dclose(did[0]) ){
-      printf("writehdf5 error: Could not close HDF5 data space \n");
-      MPI_Abort(comm, 1);
-    }
-    if(H5Sclose(filespace)) {
-      printf("writehdf5 error: Could not close HDF5 file space \n");
-      MPI_Abort(comm, 1);
-    }
-    if(H5Sclose(memspace)) {
-      printf("writehdf5 error: Could not close HDF5 memory space \n");
-      MPI_Abort(comm, 1);
-    }
-    if(H5Pclose(plist_id) < 0)
-      printf("writehdf5 error: Could not close property list \n");
-
+    err = nc_put_vara_float(ncid,varsid,start,count,data); NCERR;
   }
+
 #ifdef TIMEIO
   timer_tock(&write);
   timer_collectprintstats(write, comm, 0, "write");
@@ -538,5 +245,7 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
   timer_collectprintstats(postwrite, comm, 0, "PostWrite");
 #endif
 
+  MPI_Barrier(MPI_COMM_WORLD);
+  err = nc_close(ncid);
 
 }

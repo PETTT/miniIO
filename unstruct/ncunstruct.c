@@ -213,7 +213,7 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
     start[0] =(size_t)(nelems2*3*rank);
     count[0] =(size_t)nelems2*3;
 
-    err = nc_put_vara(ncid,conns2id,start,count,conns2); NCERR;
+    err = nc_put_vara(ncid,conns2id,start,count,conns3); NCERR;
   }
 
   /* Optional variable data, starting with number of variables */

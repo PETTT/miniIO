@@ -4,23 +4,20 @@
 #
 
 if [ "x$1" == "x" ]; then
-    echo "Usage: $0 [file 1] [file 2]"
+    echo "Usage: $0 [file id]"
     exit 1
 fi
 
-if [ "x$2" == "x" ]; then
-    echo "Usage: $0 [file 1] [file 2]"
-    exit 1
-fi
+NCFILE="unstruct.nc.d/$1.d/r.nc"
+H5FILE="unstruct.hdf5.d/$1.d/r.h5"
 
-echo "Dumping $1"
-ncdump $1 > tmpa.txt
+echo "Dumping $NCFILE"
+ncdump $NCFILE > tmpnc.txt
 
-echo "Dumping $2"
-ncdump $2 > tmpb.txt
+echo "Dumping $H5FILE"
+ncdump $H5FILE > tmph5.txt
 
 echo "Comparing"
-diff tmpa.txt tmpb.txt
-
+diff tmpnc.txt tmph5.txt
 echo ""
 echo "Finished"

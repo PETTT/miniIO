@@ -140,7 +140,8 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
 
   } /* if data & varname */
 
-  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(comm);
+
   err = nc_enddef(ncid); NCERR;
 
   if(xpts && ypts && zpts) {
@@ -163,7 +164,7 @@ void writenc(char *name, MPI_Comm comm, int tstep, uint64_t npoints,
     err = nc_var_par_access(ncid,varsid,NC_COLLECTIVE); NCERR;
   }
 
-  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(comm);
   //  } /* Rank == 0 */
 
 

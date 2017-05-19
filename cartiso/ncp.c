@@ -94,7 +94,7 @@ void writencp(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 
   err = nc_enddef(ncid); NCERR;
 
-  MPI_Barrier(comm);
+  MPI_Barrier(MPI_COMM_WORLD);
 
   if(tot_tris == 0)
     return;

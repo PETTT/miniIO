@@ -72,6 +72,7 @@ void print_usage(int rank, const char *errstr)
 #endif
 #ifdef HAS_NC
     fprintf(stderr, "    --nc : Enable netCDF Output \n");
+    fprintf(stderr, "    --nclog [log level] : Enable netCDF log level\n");
 #endif
 
     /*## End of Output Module Usage Strings ##*/
@@ -199,6 +200,7 @@ int main(int argc, char **argv)
 #endif
 
 #ifdef HAS_NC
+    int ncloglevel = 0;
     int ncout = 0;
 #endif
 
@@ -269,6 +271,9 @@ int main(int argc, char **argv)
 #ifdef HAS_NC
     else if(!strcasecmp(argv[a],"--nc")) {
       ncout = 1;
+    }
+    else if(!strcasecmp(argv[a],"--nclog")) {
+      ncloglevel = (int)strtoimax(argv[++a], NULL, 0);
     }
 
 #endif
@@ -466,6 +471,8 @@ int main(int argc, char **argv)
 #endif
 
 #ifdef HAS_NC
+        nc_set_log_level(ncloglevel);
+
         if(ncout) {
           if(rank == 0) {
             printf("    Writing netCDF...\n"); fflush(stdout);

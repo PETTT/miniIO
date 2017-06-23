@@ -227,7 +227,8 @@ int main(int argc, char **argv) {
 
 #ifdef HAS_NC
   if(ncout) {
-
+    nc_init(&ncamr_nfo, nc_groupname, comm, rank, nprocs, nt);
+    nc_addxvar(&ncamr_nfo,"data");
   }
 #endif
 
@@ -339,7 +340,7 @@ int main(int argc, char **argv) {
 
 #ifdef HAS_NC
   if(ncout) {
-    nc_finalize(&ncamr_nfo);
+    nc_final(&ncamr_nfo);
   }
 #endif
 

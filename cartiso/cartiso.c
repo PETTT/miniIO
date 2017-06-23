@@ -575,6 +575,13 @@ int main(int argc, char **argv)
           if(rank == 0) {
             printf("      Writing nci...\n"); fflush(stdout);
           }
+
+          writenci("cartiso", "value", comm, rank, nprocs, tt, ni, nj, nk,
+                   is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
+                   deltax, deltay, deltaz, cni, cnj, cnk, data);
+          writenci("cartiso", "noise", comm, rank, nprocs, tt, ni, nj, nk,
+                   is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
+                   deltax, deltay, deltaz, cni, cnj, cnk, xdata);
         }
 #endif
 
@@ -640,6 +647,8 @@ int main(int argc, char **argv)
           if(rank == 0) {
             printf("     Writing ncp...\n"); fflush(stdout);
           }
+          writencp("cartiso", "iso", comm, rank, nprocs, tt, iso.ntris,
+                     iso.points, iso.norms, iso.xvals, "noise");
         }
 #endif
 

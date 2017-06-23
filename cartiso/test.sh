@@ -1,16 +1,18 @@
 #!/bin/bash
 
 if [ "$1" == adios ];then
-output="--pvtp"
-output="--pvti"
-output="--pvti --pvtp"
-output="--adiosfull MPI"
+    output="--pvtp"
+    output="--pvti"
+    output="--pvti --pvtp"
+    output="--adiosfull MPI"
+elif [ "$1" == nc ]; then
+    output="--nci --ncp"
 else
- if [ "$1" == hdf5 ];then
-    output="--hdf5i --hdf5p --hdf5i_chunk 256 256 256 --hdf5p_chunk 100"
- else
-    echo "usage: test.sh <adios or hdf5>"
- fi
+    if [ "$1" == hdf5 ];then
+        output="--hdf5i --hdf5p --hdf5i_chunk 256 256 256 --hdf5p_chunk 100"
+    else
+        echo "usage: test.sh <adios or hdf5 or nc>"
+    fi
 fi
 
 tsk="2 2 2"
@@ -31,4 +33,3 @@ mpirun -np 8 ./cartiso --tasks $tsk --size $s $s $s --sigma $sg $sg $sg \
 #
 #mpirun -np 8 ./cartiso --tasks $tsk --size $s $s $s --sigma $sge $sge $sge \
 #    --centertask --freq $fq --tsteps 80 --tstart 120 --gaussmove --backward $output
-

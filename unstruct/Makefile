@@ -22,6 +22,16 @@ ifdef HDF5_DIR
   SRCS += hdf5unstruct.c
 endif
 
+### if NC_DIR is set then also enable netCDF Output Module ###
+ifdef NC_DIR
+  LIBS += $(NC_DIR)/lib/libnetcdf.a -lhdf5 -lhdf5_hl -lz -ldl
+  INCLUDE += -I$(NC_DIR)/include
+  OBJS += netcdf.o
+  SRCS += netcdf.c
+endif
+
+endif
+
 ### End of Output Modules ###
 
 CFLAGS += $(OSNINC)
@@ -29,7 +39,7 @@ CFLAGS += $(OSNINC)
 .PHONY: clean depend
 
 unstruct: $(OSNOBJ) $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS) 
+	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 clean:
 	rm -f *.o unstruct
@@ -45,5 +55,5 @@ depend:
 unstruct.o: ../osn/open-simplex-noise.h przm.h adiosunstruct.h
 przm.o: ../pdirs.h przm.h
 adiosunstruct.o: adiosunstruct.h
+netcdfunstruct.o: ../pdirs.h netcdf.h
 hdf5unstruct.o: ../pdirs.h
-

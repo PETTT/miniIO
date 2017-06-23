@@ -1,3 +1,7 @@
+# Vagrant stuff
+.vagrant
+html
+
 # Mac & windows stuff
 .DS_Store
 .DS_Store?
@@ -24,3 +28,4 @@ struct/struct
 # Program ouput files
 **/*.h5
 **/*.xmf
+**/*.nc

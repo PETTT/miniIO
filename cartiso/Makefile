@@ -31,6 +31,12 @@ ifdef ADIOS_HOME
   SRCS += adiosiso.c
 endif
 
+### if NC_DIR set then enable netCDF
+ifdef NC_DIR
+	OBJS += nci.o ncp.o
+	SRCS += nci.c ncp.c
+endif
+
 ### if HDF5_DIR set then enable HDF5 ###
 ifdef HDF5_DIR
   OBJS += hdf5i.o hdf5p.o
@@ -68,5 +74,4 @@ cartiso.o: adiosfull.h adiosiso.h
 pvti.o: ../pdirs.h pvti.h
 pvtp.o: ../pdirs.h pvtp.h
 adiosfull.o: adiosfull.h ../pdirs.h
-adiosiso.o: adiosiso.h 
-
+adiosiso.o: adiosiso.h

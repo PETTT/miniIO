@@ -19,18 +19,18 @@ else
 endif
 
 # Optimization and debugging flags, (un)comment as desired
-OPT = -O3
-DBG = -g
+OPT = -O0
+DBG = -ggdb -g3
 
 # Add HDF5 library, set to install directory
 # ** set via the HDF5_DIR environment variable **
 
-# Flags, set as needed; add MPI flags if wrappers weren't available 
+# Flags, set as needed; add MPI flags if wrappers weren't available
 CFLAGS =
-CXXFLAGS = 
+CXXFLAGS =
 FCFLAGS =
-LDFLAGS = 
-LIBS += -lm
+LDFLAGS =
+LIBS = -lm
 
 # You should probably leave the rest below alone
 
@@ -61,10 +61,16 @@ ifdef ADIOS_HOME
   LIBS += -L$(ADIOS_HOME)/lib -ladios -lmxml
 endif
 
+### if NC_DIR is set then enable NetCDF-C ###
+ifdef NC_DIR
+   LIBS += $(NC_DIR)/lib/libnetcdf.a $(NC_DIR)/lib/libhdf5_hl.a $(NC_DIR)/lib/libhdf5.a -lz -ldl
+   INCLUDE += -I$(NC_DIR)/include
+   CFLAGS += -DHAS_NC
+endif
+
 ### if HDF5_DIR is set then enable HDF5 ###
 ifdef HDF5_DIR
   LIBS += $(HDF5_DIR)/lib/libhdf5.a -lz -ldl
   INCLUDE += -I$(HDF5_DIR)/include
   CFLAGS += -DHAS_HDF5
 endif
-

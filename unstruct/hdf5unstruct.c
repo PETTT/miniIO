@@ -84,8 +84,9 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	printf("writehdf5 error: Could not create property list \n");
 	MPI_Abort(comm, 1);
       }
-      
+#ifndef HDF5_1_6
       H5Pset_libver_bounds(plist_id, H5F_LIBVER_LATEST, H5F_LIBVER_LATEST);
+#endif
       H5Pset_fclose_degree(plist_id,H5F_CLOSE_WEAK);
 
       if( (file_id = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id)) < 0) {
@@ -138,12 +139,22 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	}
 
 	/* Create Grid Group */
+#ifdef HDF5_1_6
+	group_id = H5Gcreate(file_id, "grid points",0);
+#else
 	group_id = H5Gcreate(file_id, "grid points", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+#endif
 	
 	/* Create the dataset with default properties and close filespace. */
+#ifdef HDF5_1_6
+	did[0] = H5Dcreate(group_id, "x", H5T_NATIVE_FLOAT, filespace, chunk_pid);
+	did[1] = H5Dcreate(group_id, "y", H5T_NATIVE_FLOAT, filespace, chunk_pid);
+	did[2] = H5Dcreate(group_id, "z", H5T_NATIVE_FLOAT, filespace, chunk_pid);
+#else
 	did[0] = H5Dcreate(group_id, "x", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
 	did[1] = H5Dcreate(group_id, "y", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
 	did[2] = H5Dcreate(group_id, "z", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
+#endif
 	H5Sclose(filespace);
 	
 	err = H5Dclose(did[0]);
@@ -200,7 +211,11 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	}
       
       /* Create the dataset with default properties and close filespace. */
+#ifdef HDF5_1_6
+	did[0] = H5Dcreate(file_id, "conns3", H5T_NATIVE_ULLONG, filespace, chunk_pid);
+#else
 	did[0] = H5Dcreate(file_id, "conns3", H5T_NATIVE_ULLONG, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
+#endif
 	H5Sclose(filespace);
 	
 	err = H5Dclose(did[0]);
@@ -250,7 +265,11 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	}
 	
 	/* Create the dataset with default properties and close filespace. */
+#ifdef HDF5_1_6
+	did[0] = H5Dcreate(file_id, "conns2", H5T_NATIVE_ULLONG, filespace, chunk_pid);
+#else
 	did[0] = H5Dcreate(file_id, "conns2", H5T_NATIVE_ULLONG, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
+#endif
 	H5Sclose(filespace);
 	err = H5Dclose(did[0]);
 	if(h5_chunk)
@@ -296,7 +315,11 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	}
 
 	/* Create the dataset with default properties and close filespace. */
+#ifdef HDF5_1_6
+	did[0] = H5Dcreate(file_id, "vars", H5T_NATIVE_FLOAT, filespace, chunk_pid);
+#else
 	did[0] = H5Dcreate(file_id, "vars", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, chunk_pid, H5P_DEFAULT);
+#endif
 	H5Sclose(filespace);
 	
 	if(H5Dclose(did[0]) ){
@@ -324,8 +347,9 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       printf("writehdf5 error: Could not create property list \n");
       MPI_Abort(comm, 1);
     }
-
+#ifndef HDF5_1_6
     H5Pset_libver_bounds(plist_id, H5F_LIBVER_LATEST, H5F_LIBVER_LATEST);
+#endif
 
     H5Pset_fclose_degree(plist_id,H5F_CLOSE_WEAK);
     if(H5Pset_fapl_mpio(plist_id, MPI_COMM_WORLD, info) < 0) {
@@ -369,9 +393,15 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       } 
 
       /* Create the dataset with default properties and close filespace. */
+#ifdef HDF5_1_6
+      did[0] = H5Dopen(file_id, "/grid points/x");
+      did[1] = H5Dopen(file_id, "/grid points/y");
+      did[2] = H5Dopen(file_id, "/grid points/z");
+#else
       did[0] = H5Dopen(file_id, "/grid points/x", H5P_DEFAULT);
       did[1] = H5Dopen(file_id, "/grid points/y", H5P_DEFAULT);
       did[2] = H5Dopen(file_id, "/grid points/z", H5P_DEFAULT);
+#endif
 
       /* Select hyperslab in the file.*/
       filespace = H5Dget_space(did[0]);
@@ -403,7 +433,11 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
     if(conns3 && nelems3) {
 
     /* Create the dataspace for the dataset. */
+#ifdef HDF5_1_6
+      did[0] = H5Dopen(file_id, "conns3");
+#else
       did[0] = H5Dopen(file_id, "conns3", H5P_DEFAULT);
+#endif
 
       /* 
        * Each process defines dataset in memory and writes it to the hyperslab
@@ -441,7 +475,11 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 
     /*     Optional 2D surface triangle connections, writes a 64-bit 0 if none */
     if(conns2 && nelems2) {
+#ifdef HDF5_1_6
+      did[0] = H5Dopen(file_id, "conns2");
+#else
       did[0] = H5Dopen(file_id, "conns2", H5P_DEFAULT);
+#endif
 
       /* 
        * Each process defines dataset in memory and writes it to the hyperslab
@@ -494,7 +532,11 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       }
 
       /* Create the dataset with default properties and close filespace. */
+#ifdef HDF5_1_6
+      did[0] = H5Dopen(file_id, "vars");
+#else
       did[0] = H5Dopen(file_id, "vars", H5P_DEFAULT);
+#endif
 
       memspace = H5Screate_simple(1, count, NULL);
       

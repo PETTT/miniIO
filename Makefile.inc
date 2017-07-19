@@ -1,6 +1,8 @@
 
 # MPI Compiler wrappers preferred; just compilers otherwise
-LIBS =
+ifeq ($(LIBS),)
+  LIBS =
+endif
 
 HOSTNAME := $(shell hostname)
 ifeq ($(findstring .mil,$(HOSTNAME)),.mil)
@@ -26,10 +28,18 @@ DBG = -ggdb -g3
 # ** set via the HDF5_DIR environment variable **
 
 # Flags, set as needed; add MPI flags if wrappers weren't available
-CFLAGS =
-CXXFLAGS =
-FCFLAGS =
-LDFLAGS =
+ifeq ($(CFLAGS),)
+  CFLAGS =
+endif
+ifeq ($(CXXFLAGS),)
+  CXXFLAGS =
+endif
+ifeq ($(FCFLAGS),)
+  FCFLAGS =
+endif
+ifeq ($(LDFLAGS),)
+  LDFLAGS =
+endif
 LIBS = -lm
 
 # You should probably leave the rest below alone
@@ -71,6 +81,8 @@ endif
 ### if HDF5_DIR is set then enable HDF5 ###
 ifdef HDF5_DIR
   LIBS += $(HDF5_DIR)/lib/libhdf5.a -lz -ldl
+# setenv LD_LIBRARY_PATH $HDF5_DIR/lib
+#  LIBS += -L$(HDF5_DIR)/lib/ -lhdf5 -lz -ldl  
   INCLUDE += -I$(HDF5_DIR)/include
   CFLAGS += -DHAS_HDF5
 endif

@@ -135,6 +135,8 @@ void hdf5_write(struct hdf5amrinfo *nfo, int tstep, uint64_t cnpoints, float *po
     MPI_Abort(nfo->comm, 1);
   }
   
+   H5Pset_all_coll_metadata_ops(plist_id, 1 );
+
   MPI_Barrier(nfo->comm);
   if( (file_id = H5Fopen(fname, H5F_ACC_RDWR, plist_id)) < 0) {
     fprintf(stderr, "writehdf5p error: could not open %s \n", fname);

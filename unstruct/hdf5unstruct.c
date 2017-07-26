@@ -355,7 +355,7 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 
 #ifndef HDF5_1_6
     H5Pset_coll_metadata_write(plist_id, 1);
-   /*  H5Pset_all_coll_metadata_ops(plist_id, 1 ); */
+     H5Pset_all_coll_metadata_ops(plist_id, 1 );
 #endif
 
     if(H5Pset_fapl_mpio(plist_id, MPI_COMM_WORLD, info) < 0) {

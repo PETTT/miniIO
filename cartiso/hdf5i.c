@@ -110,6 +110,7 @@ void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
     }
 
     H5Pset_all_coll_metadata_ops(plist_id, 1 );
+    H5Pset_coll_metadata_write(plist_id, 1);
     if( (file_id = H5Fopen(fname, H5F_ACC_RDWR, plist_id)) < 0) {
       fprintf(stderr, "writehdf5i error: could not open %s \n", fname);
       MPI_Abort(comm, 1);

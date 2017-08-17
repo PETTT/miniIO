@@ -363,15 +363,29 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       MPI_Abort(comm, 1);
     }
     
+    /* testing metadata effects */
+#ifdef metadata
+    H5AC_cache_config_t mdc_config;
+    mdc_config.version = H5AC__CURR_CACHE_CONFIG_VERSION;
+    H5Pget_mdc_config(plist_id, &mdc_config);
+    mdc_config.evictions_enabled = 0;
+    mdc_config.incr_mode = H5C_incr__off;
+    mdc_config.decr_mode = H5C_decr__off;
+    mdc_config.flash_incr_mode = H5C_flash_incr__off;
+    H5Pset_mdc_config(plist_id, &mdc_config);
+#endif
+
     if( (file_id = H5Fopen(fname, H5F_ACC_RDWR, plist_id)) < 0) {
       fprintf(stderr, "writehdf5 error: could not open %s \n", fname);
       MPI_Abort(comm, 1);
     }
-    
+
+
     if(H5Pclose(plist_id) < 0) {
       printf("writehdf5 error: Could not close property list \n");
       MPI_Abort(comm, 1);
     }
+
 #ifdef TIMEIO
     timer_tock(&prewrite);
     timer_collectprintstats(prewrite, comm, 0, "PreWrite");

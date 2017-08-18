@@ -36,6 +36,7 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
     hid_t group_id;
     hid_t memspace;
     hid_t filespace;
+    hid_t fcpl;
     
     hid_t did[3];
     hsize_t start[1], count[1];
@@ -88,12 +89,26 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
       H5Pset_libver_bounds(plist_id, H5F_LIBVER_LATEST, H5F_LIBVER_LATEST);
 #endif
       H5Pset_fclose_degree(plist_id,H5F_CLOSE_WEAK);
-
-      if( (file_id = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id)) < 0) {
+#if 0      
+      H5Pset_alignment(plist_id,0,8*1048576);
+#endif
+      fcpl = H5Pcreate(H5P_FILE_CREATE);
+#if 0
+      if(H5Pset_istore_k(fcpl, 1024) < 0) {
+        printf("writehdf5 error: H5Pset_istore \n");
+        MPI_Abort(comm, 1);
+      }
+#endif
+      if( (file_id = H5Fcreate(fname, H5F_ACC_TRUNC, fcpl, plist_id)) < 0) {
 	fprintf(stderr, "writehdf5 error: could not open %s \n", fname);
 	MPI_Abort(comm, 1);
       }
-      
+     
+      if(H5Pclose(fcpl) < 0) {
+        printf("writehdf5 error: Could not close creation property list \n");
+        MPI_Abort(comm, 1);
+      }
+ 
       if(H5Pclose(plist_id) < 0) {
 	printf("writehdf5 error: Could not close property list \n");
 	MPI_Abort(comm, 1);

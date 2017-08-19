@@ -1,8 +1,8 @@
 
 include ../Makefile.inc
 
-OBJS = struct.o
-SRCS = struct.c
+OBJS = struct.o splitspace.o
+SRCS = struct.c splitspace.c
 
 ifdef ADIOS_HOME
   OBJS += adiosstruct.o

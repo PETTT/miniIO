@@ -22,7 +22,7 @@ lname2method = { "przm": "MPI-Indiv", "POSIX": "ADIOS-POSIX",
         "hdf5": "HDF5" }
 
 v = []
-
+bal = False
 for fname in sys.argv[1:]:
 
     # Determine method from file name, if it's there
@@ -38,7 +38,8 @@ for fname in sys.argv[1:]:
 
         if ls[0][0:4] == "tsk=":
             if ls[0][4] == "\"": continue    # Skip LSF copy of batch script
-
+            
+            print ls
             cores = int(ls[0][4:]) *  int(ls[1])
             size = ls[2][3:] + 'x' +ls[3][3:] + 'x' + ls[4][3:]
             sizeprod = float(ls[2][3:]) * float(ls[3][3:]) * float(ls[4][3:])
@@ -46,6 +47,9 @@ for fname in sys.argv[1:]:
             
             # Determine method from line; make sure matches one from file name
             method2key = next((x for x in lname2method.keys() if re.search(x, l)), False)
+            if(re.search("balance", l)):
+               bal= True
+
             if method2key:
                 if method1key:
                     if fname2method[method1key] != lname2method[method2key]:
@@ -62,11 +66,16 @@ for fname in sys.argv[1:]:
                 else:
                     print "ERROR: not method specified, cannot proceed"
                     sys.exit(1)
+
+            if bal: 
+               method = method + "_Bal"
+               bal = False
+
         elif ls[0] == "Output":
             outtime = float(ls[11][:-1])
             v.append([method, cores, size, sizegb, outtime, sizegb/outtime])
 
-print "%-16s %5s %15s %5s %5s %5s" % ("method", "cores", "size", "f_GB", "ftime", "fGB/s")
+print "%-20s %5s %15s %5s %5s %5s" % ("method", "cores", "size", "f_GB", "ftime", "fGB/s")
 for i in v:
-    print "%-16s %5d %8s %7.1f %6.2f %6.2f" % tuple(i)
+    print "%-20s %5d %-10s %7.1f %6.2f %6.2f" % tuple(i)
 

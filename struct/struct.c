@@ -10,7 +10,7 @@
 #include <mpi.h>
 #include "open-simplex-noise.h"
 #include "timer.h"
-
+#include "splitspace.h"
 
 /* #include <limits.h> */
 /* #include <assert.h> */
@@ -35,10 +35,13 @@ int main(int argc, char **argv)
 {
   int debug=0;                  /* Flag to generate debug prints statements */
   int debugIO=0;                /* Flag to generate debug IO*/
+  int debugBal=0;               /* Flag to generate debug for balance */
+  int balance=0;                /* Flag to enable/disable load balancing */
   int a, i, j, k, t;            /* loop indices */
   int tt;                       /* Actual time step from tstart */
   float x, y, z;
-  double noisespacefreq = 10.0; /* Spatial frequency of noise */
+  double noisespacefreq = 3.5; /* Spatial frequency of noise */
+  double noisespacefreqData = 10.0; /* Spatial frequency of noise for data */
   double noisetimefreq = 0.25;  /* Temporal frequency of noise */
   int tstart = 0;
   int nt = 10;                  /* Number of time steps */
@@ -70,13 +73,20 @@ int main(int argc, char **argv)
   const int num_varnames=4;
   char *varnames[num_varnames];
 
-
+  /* balance spacesplit vars */
+  struct factorstruct factors;
+  recList rects_list;
+  int *ol_mask_2dsum;
+  int tmp_mask;
+  int sum_id;
+  float h_tmp;
+  
   /* MPI vars */
   MPI_Comm comm = MPI_COMM_WORLD;
   int cprocs[3], cpers[3], crnk[3];  /* MPI Cartesian info */
   int rank, nprocs;
   int cni, cnj, cnk;   /* Points in this task */
-  int is, js, ks;     /* Global index starting points */
+  int is, js, ks;      /* Global index starting points */
   float xs, ys, zs;    /* Global coordinate starting points */
 
   /* ADIOS vars */
@@ -119,6 +129,8 @@ int main(int argc, char **argv)
       bot_mask_thres = (mask_thres+1.0)/2;
     } else if(!strcasecmp(argv[a], "--noisespacefreq")) {
       noisespacefreq = strtod(argv[++a], NULL);
+    } else if(!strcasecmp(argv[a], "--noisespacefreqData")) {
+      noisespacefreqData = strtod(argv[++a], NULL);
     } else if(!strcasecmp(argv[a], "--noisetimefreq")) {
       noisetimefreq = strtod(argv[++a], NULL);
     } else if(!strcasecmp(argv[a], "--tsteps")) {
@@ -127,6 +139,11 @@ int main(int argc, char **argv)
       tstart = atoi(argv[++a]);
     }else if(!strcasecmp(argv[a], "--debug")) {
       debug = 1;
+    }else if(!strcasecmp(argv[a], "--debugBal")) {
+      debugBal = 1;
+    }
+    else if(!strcasecmp(argv[a], "--balance")) {
+      balance = 1;
     }
 #ifdef HAS_ADIOS
     else if(!strcasecmp(argv[a], "--adios")) {
@@ -186,8 +203,8 @@ int main(int argc, char **argv)
     print_usage(rank, "Error: tasks not specified or incorrect");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
-  if(ni < 1 || nj < 1 || nk < 1) {
-    print_usage(rank, "Error: size not specified or incorrect");
+  if(ni <= 1 || nj <= 1 || nk <= 1) {
+    print_usage(rank, "Error: size not specified or incorrect dim must be > 1");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
   if(inp*jnp != nprocs) {
@@ -205,17 +222,22 @@ int main(int argc, char **argv)
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
-
-   /* Set up Cartesian communicator */
-  cprocs[0] = inp;  cprocs[1] = jnp;  cprocs[2] = knp;
   cpers[0] = 0;  cpers[1] = 0;  cpers[2] = 0;    /* No periodicity */
-  MPI_Cart_create(MPI_COMM_WORLD, 3, cprocs, cpers, 1, &comm);
-  MPI_Comm_rank(comm, &rank);
-  MPI_Cart_coords(comm, rank, 3, crnk);
+  crnk[0] = 0; crnk[1] = 0; crnk[2] = 0;
+
+  /* if not balancing use  Cartesian communicator for proc decompostion */
+  if (!balance) {
+    /* Set up Cartesian communicator */
+    cprocs[0] = inp;  cprocs[1] = jnp;  cprocs[2] = knp;
+    MPI_Cart_create(MPI_COMM_WORLD, 3, cprocs, cpers, 1, &comm);
+    MPI_Comm_rank(comm, &rank);
+    MPI_Cart_coords(comm, rank, 3, crnk);
+  }
 
   deltax = 1.f/(ni-1);
   deltay = 1.f/(nj-1);
   deltaz = 1.f/(nk-1);
+
   cni = ni / inp;
   cnj = nj / jnp;
   cnk = nk / knp;
@@ -234,14 +256,130 @@ int main(int argc, char **argv)
   mask_thres_index = (int) ( ((mask_thres+1)/2) * (nk-1));
   maskTindex = nk-1;
 
-  if (debug) {
-    /* printf("rank_cord(%d,%d,%d) rank=%d: %d of %d\n", crnk[0], crnk[1], crnk[2] , rank, rank+1, nprocs); */
-    printf("Grid size= (%d x %d x %d) = %llu points\n", ni, nj, nk, npoints);
-    /* printf("Grid deltas= (%f x %f x %f)\n", deltax, deltay, deltaz); */
-    printf("Mask theshold = %f   mask threshold index = %d\n", mask_thres, mask_thres_index);
-  }
   /* Set up osn */
   open_simplex_noise(12345, &simpnoise);   /* Fixed seed, for now */
+
+  /* Allocate arrays */
+  if (balance) {
+    ol_mask_2dsum =  (int *) malloc((size_t)xy_dims*sizeof(int));
+
+    /* initalize sums to zero */
+    for(j = 0; j < nj; j++) {
+      for(i = 0; i < ni; i++) {
+	/* calculate index */
+	x_index = i;
+	y_index = j;
+	z_index = k;
+	sum_id = (y_index * x_dims) + x_index;
+	ol_mask_2dsum[sum_id] = 0;
+      }
+    }
+    sum_id = 0;
+
+    /* Compute 2d sums   */
+    z = zs;
+    for(k = 0; k < nk; k++) {
+      y = ys;
+      for(j = 0; j < nj; j++) {
+	x = xs;
+	for(i = 0; i < ni; i++) {
+
+	  /* calculate index */
+	  x_index = i;
+	  y_index = j;
+	  z_index = k;
+	  sum_id = (y_index * x_dims) + x_index;
+
+	  /* Get height and subtract bottom threshold */
+	  h_tmp =  (float)open_simplex_noise2(simpnoise, x*noisespacefreq, y*noisespacefreq)  - bot_mask_thres;
+
+	  hindex = (int) ((h_tmp+1) / (mask_thres+1) * (nk-1));
+
+	  if (hindex > maskTindex) {
+	    hindex = maskTindex;
+	  }
+
+	  /* Calculate ol_mask values */
+	  if (z_index < maskTindex  && z_index > hindex) {
+	    tmp_mask = 0;  /* ocean */
+	  }
+	  else if (z_index <= hindex) {
+	    if (h_tmp >= mask_thres  || z_index < hindex) {
+	      tmp_mask = 1;  /* land */
+	    }
+	    else {
+	      tmp_mask = 0;  /* ocean */
+	    }
+	  }
+	  else if (z_index == maskTindex  && h_tmp <= mask_thres) {
+	    tmp_mask = 0;  /* ocean */
+	  }
+	  else {
+	    printf("WARNING: ol_mask condition not considered for Point_index: (%d,%d,%d)\n"
+		   "Point_id: %d  Height: %f HeightID: %d maskTindex=%d\n",
+		   x_index, y_index, z_index, point_id+1, h_tmp, hindex, maskTindex);
+	  }
+	  ol_mask_2dsum[sum_id] += tmp_mask;
+	  
+	  x += deltax;
+	}
+	y += deltay;
+      }
+      z += deltaz;
+    }
+
+    if (rank == 0 && debug) {
+      
+      printf("Struct sum of layers %d to %d\n", 0, nk-1);
+      
+      for(i = 0; i < ni; i++) {
+	for(j = 0; j < nj; j++) {
+	  /* calculate index */
+	  x_index = i;
+	  y_index = j;
+	  z_index = k;
+	  sum_id = (y_index * x_dims) + x_index;
+	  
+	  if( j == 0) {
+	    printf("[ %d ",  ol_mask_2dsum[sum_id]);
+	  }
+	  else  {
+	    printf("%d ",  ol_mask_2dsum[sum_id]);
+	  }
+	}
+	printf("]\n");
+      }
+      printf("\n");
+    }
+
+
+    /* Use splitspace for proc decompostion */   
+    init_splitspace(&factors, &rects_list, nprocs);
+    splitspace(&rects_list, ni, nj, &factors, ol_mask_2dsum);
+
+    if (rank == 0 && debugBal) {
+      print_rects(&rects_list);
+    }
+
+    /* set data bound based on rank */
+    if (rank == 0 && debugBal) {
+      printf("Proc %d has rect: (%d,%d:%d,%d)\n", rank, rects_list.recs[rank].x0, rects_list.recs[rank].y0,
+	     rects_list.recs[rank].x1, rects_list.recs[rank].y1);
+    }
+    free (ol_mask_2dsum);
+    
+    is = rects_list.recs[rank].x0;
+    js = rects_list.recs[rank].y0;
+    ks = 0;
+    cni = rects_list.recs[rank].x1+1 - rects_list.recs[rank].x0;
+    cnj = rects_list.recs[rank].y1+1 - rects_list.recs[rank].y0;
+    cnk = nk; 
+    xs = is * deltax;
+    ys = js * deltay;
+    zs = ks * deltaz;
+
+    free_splitspace (&factors, &rects_list);
+  }
 
   /* Allocate arrays */
   data = (float *) malloc((size_t)cni*cnj*cnk*sizeof(float));
@@ -254,15 +392,14 @@ int main(int argc, char **argv)
   varnames[2] = "ola_mask";
   varnames[3] = "ol_mask";
 
-  /* init ADIOS */
+ /* init ADIOS */
 #ifdef HAS_ADIOS
-
   if (adios_method) {
     adiosstruct_init(&adiosstruct_nfo, adios_method, adios_groupname, comm, rank, nprocs, nt,
 		     ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, deltaz, FILLVALUE);
     adiosstruct_addrealxvar(&adiosstruct_nfo, varnames[0], data);
 
-    if (debugIO) {
+    if (debugIO ) {
       adiosstruct_addrealxvar(&adiosstruct_nfo, varnames[1], height);
       adiosstruct_addintxvar(&adiosstruct_nfo, varnames[2], ola_mask);
       adiosstruct_addintxvar(&adiosstruct_nfo, varnames[3], ol_mask);
@@ -270,6 +407,7 @@ int main(int argc, char **argv)
   }
 #endif
 
+ 
   /* generate masked grid */
   /* Spatial loops */
   size_t ii;     /* data index */
@@ -317,9 +455,6 @@ int main(int argc, char **argv)
 		 "Point_id: %d  Height: %f HeightID: %d  mask_thres_index=%d\n",
 		 x_index, y_index, z_index, point_id+1, height[ii], height_index, mask_thres_index);
 	}
-
-
-	hindex = (int) ( (((height[ii]+1)/2) * (nk-1)) / (mask_thres_index+1)) * (nk-1);
 
 	hindex = (int) ((height[ii]+1) / (mask_thres+1) * (nk-1));
 
@@ -381,7 +516,7 @@ int main(int argc, char **argv)
 
 	  if ( ol_mask[ii] == 0) {
 	    /* if  ( ola_mask[ii] == 0) { */
-	    data[ii] = (float)open_simplex_noise4(simpnoise, x*noisespacefreq, y*noisespacefreq, z*noisespacefreq, tt*noisetimefreq);
+	    data[ii] = (float)open_simplex_noise4(simpnoise, x*noisespacefreqData, y*noisespacefreqData, z*noisespacefreqData, tt*noisetimefreq);
 	  }
 	  else {
 	    data[ii] = FILLVALUE;
@@ -399,7 +534,12 @@ int main(int argc, char **argv)
     timer_tick(&outtime, comm, 1);
 
 #ifdef HAS_ADIOS
-    if (adios_method) adiosstruct_write(&adiosstruct_nfo, tt);
+    if (adios_method) {
+       if(rank == 0) {
+	printf("      Writing Adios...\n");   fflush(stdout);
+       }
+       adiosstruct_write(&adiosstruct_nfo, tt);
+    }
 #endif
 
 #ifdef HAS_HDF5
@@ -475,14 +615,17 @@ void print_usage(int rank, const char *errstr)
 	  "      valid values are > 1\n\n"
 	  "  Optional:\n"
 	  "    --debug : Turns on debugging print statements \n"
+	  "    --debugBal : Turns on debugging print statements for balancing\n"
 	  "    --maskthreshold MT : Mask theshold; valid values are floats between -1.0 and 1.0 \n"
 	  "      MT : mask threshold value; Default: 0.0\n"
-	  "    --noisespacefreq FNS : Spatial frequency of noise function\n"
+	  "    --noisespacefreq FNS : Spatial frequency of noise function for land\n"
+	  "    --noisespacefreqData FNS : Spatial frequency of noise function for data\n"
 	  "      FNS : space frequency value; Default: 10.0\n"
 	  "    --noisetimefreq FNT : Temporal frequency of noise function\n"
 	  "      FNT : time frequency value;  Default: 0.25\n"
 	  "    --tsteps NT : Number of time steps; valid values are > 0 (Default value 10)\n"
 	  "    --tstart TS : Starting time step; valid values are >= 0  (Default value 0)\n"
+	  "    --balance : Turns on load balancing \n"
 
 #ifdef HAS_ADIOS
 	  "    --adios [POSIX|MPI|MPI_LUSTRE|MPI_AGGREGATE|PHDF5]: Enable ADIOS output\n"

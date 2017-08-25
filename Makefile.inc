@@ -40,7 +40,7 @@ endif
 ifeq ($(LDFLAGS),)
   LDFLAGS =
 endif
-LIBS = -lm
+LIBS += -lm
 
 # You should probably leave the rest below alone
 

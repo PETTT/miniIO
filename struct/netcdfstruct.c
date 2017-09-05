@@ -48,7 +48,7 @@ void writenc(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
              int nprocs, int tstep,
              int is, int js, int ks,
              int ni, int nj, int nk, int cni, int cnj, int cnk,
-             float *data, float *height, int *ola_mask, int *ol_mask) {
+             float *data) {
 
 
   char fname[NC_MAX_NAME_LENGTH +1];
@@ -113,12 +113,12 @@ void writenc(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
   for(i = 0; i < num_varnames; i++) {
     if(strcmp(varnames[i],"data") == 0) {
       err = nc_put_vara_float(ncid,varids[i],start,count,data); ERR;
-    } else if(strcmp(varnames[i],"height") == 0) {
+    /*} else if(strcmp(varnames[i],"height") == 0) {
       err = nc_put_vara_float(ncid,varids[i],start,count,height); ERR;
     } else if(strcmp(varnames[i],"ola_mask") == 0) {
       err = nc_put_vara_int(ncid,varids[i],start,count,ola_mask); ERR;
     } else if (strcmp(varnames[i],"ol_mask") == 0) {
-      err = nc_put_vara_int(ncid,varids[i],start,count,ol_mask); ERR;
+      err = nc_put_vara_int(ncid,varids[i],start,count,ol_mask); ERR; */
     } else {
       printf("writenc error: Unknown variable %s\n",varnames[i]);
       MPI_Abort(comm,1);

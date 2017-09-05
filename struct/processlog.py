@@ -14,16 +14,29 @@ import sys
 import re
 
 fname2method = { ".przm.": "MPI-Indiv", ".posix.": "ADIOS-POSIX", 
-        ".mpi.": "ADIOS-MPI", ".mpilus.": "ADIOS-MPI_Lustre", ".mpiagg.": "ADIOS-MPI_Aggr",
+        ".mpi.": "ADIOS-MPI", ".mpilus.": "ADIOS-MPI_Lustre", ".mpiag.": "ADIOS-MPI_Aggr",
         ".phdf5.": "ADIOS-PHDF5", ".hdf5.": "HDF5", }
 lname2method = { "przm": "MPI-Indiv", "POSIX": "ADIOS-POSIX", 
         "MPI ": "ADIOS-MPI", "MPI_LUSTRE": "ADIOS-MPI_Lustre",
         "MPI_AGGREGATE": "ADIOS-MPI_Aggr", "PHDF5": "ADIOS-PHDF5", 
         "hdf5": "HDF5" }
 
-v = []
-bal = False
-for fname in sys.argv[1:]:
+totalrate = -1.0
+a = 1
+printFName = False
+
+for arg in sys.argv[1:2]:
+    if arg == "-a":   # produce average rate
+        totalrate = 0.0
+        a += 1
+
+if len(sys.argv[a:]) > 1: printFName = True
+
+for fname in sys.argv[a:]:
+
+    v = []
+    if totalrate > 0.0: totalrate = 0.0     # reset for new file
+    bal = False
 
     # Determine method from file name, if it's there
     method1key = next((x for x in fname2method.keys() if x in fname), False)
@@ -67,15 +80,20 @@ for fname in sys.argv[1:]:
                     print "ERROR: not method specified, cannot proceed"
                     sys.exit(1)
 
-            if bal: 
-               method = method + "_Bal"
-               bal = False
+            #if bal: 
+            #   method = method + "_Bal"
+            #   bal = False
 
         elif ls[0] == "Output":
             outtime = float(ls[11][:-1])
-            v.append([method, cores, size, sizegb, outtime, sizegb/outtime])
+            rate = sizegb/outtime
+            balstr = "Yes" if bal else "No"
+            if totalrate >= 0.0: totalrate += rate
+            v.append([method, balstr, cores, size, sizegb, outtime, rate])
 
-print "%-20s %5s %15s %5s %5s %5s" % ("method", "cores", "size", "f_GB", "ftime", "fGB/s")
-for i in v:
-    print "%-20s %5d %-10s %7.1f %6.2f %6.2f" % tuple(i)
+    if printFName: print fname
+    print "%-16s %3s %5s %-16s %7s %6s %6s" % ("method", "bal", "cores", "size", "f_GB", "ftime", "fGB/s")
+    for i in v:
+        print "%-16s %3s %5d %-16s %7.1f %6.2f %6.2f" % tuple(i)
+    if totalrate >= 0.0: print "Avg rate =", totalrate/len(v)
 

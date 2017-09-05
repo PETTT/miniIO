@@ -26,7 +26,7 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 	       int is, int js, int ks,
                int ni, int nj, int nk, int cni, int cnj, int cnk,
                float deltax, float deltay, float deltaz,
-               float *data, float *height, int *ola_mask, int *ol_mask, hsize_t *h5_chunk, int hdf5_compress)
+               float *data, hsize_t *h5_chunk, char *hdf5_compress)
 {
     char fname[fnstrmax+1];
     char fname_xdmf[fnstrmax+1];
@@ -84,16 +84,21 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 
 	H5Pset_chunk(chunk_pid, 3, chunk);
 
-	if(hdf5_compress == 1) {
+	if(hdf5_compress) {
 
-	  /* Set ZLIB / DEFLATE Compression using compression level 6. */
-	  H5Pset_deflate (chunk_pid, 6);
-
-	  /* Uncomment these lines to set SZIP Compression
-	     szip_options_mask = H5_SZIP_NN_OPTION_MASK;
-	     szip_pixels_per_block = 16;
-	     status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
-	  */
+          if(!strcasecmp(hdf5_compress, "zlib")) {
+	    /* Set ZLIB / DEFLATE Compression using compression level 6. */
+	    H5Pset_deflate (chunk_pid, 6);
+          } else if(!strcasecmp(hdf5_compress, "shuffle+zlib")) {
+            /* Set Shuffle before Deflate */
+            H5Pset_shuffle (chunk_pid);
+	    /* Set ZLIB / DEFLATE Compression using compression level 6. */
+	    H5Pset_deflate (chunk_pid, 6);
+          } else if(!strcasecmp(hdf5_compress, "szip"))  {
+	    /* Set SZIP Compression, default options, 16 pixels per block */
+	    H5Pset_szip (plist_id, H5_SZIP_NN_OPTION_MASK, 16);
+	  } else 
+	    fprintf(stderr, "WARNING: Compression option not recognized: %s\n", hdf5_compress);
 	}
       }
 
@@ -208,12 +213,12 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
       err = 0;
       if(strcmp(varnames[j],"data") == 0) {
 	err = H5Dwrite(did, H5T_NATIVE_FLOAT, memspace, filespace, plist_id, data);
-      } else if(strcmp(varnames[j],"height") == 0) {
+      /*} else if(strcmp(varnames[j],"height") == 0) {
 	err = H5Dwrite(did, H5T_NATIVE_FLOAT, memspace, filespace, plist_id, height);
       } else if(strcmp(varnames[j],"ola_mask") == 0) {
 	err = H5Dwrite(did, H5T_NATIVE_INT, memspace, filespace, plist_id, ola_mask);
       } else if(strcmp(varnames[j],"ol_mask") == 0) {
-	err = H5Dwrite(did, H5T_NATIVE_INT, memspace, filespace, plist_id, ol_mask);
+	err = H5Dwrite(did, H5T_NATIVE_INT, memspace, filespace, plist_id, ol_mask); */
       } else {
 	printf("writehdf5 error: Unknown how to handle variable %s \n", varnames[j]);
 	MPI_Abort(comm, 1);

@@ -28,14 +28,15 @@ if len(sys.argv) <= 1:
 
 phases = ["sin2gauss", "gaussmove", "gaussresize", "gaussmove_r"]
 name2otype = { "pvti": "Full", "pvtp": "Iso", "adiosfull": "Full", "adiosiso": "Iso",
-        "hdf5i": "Full", "hdf5p": "Iso" }
+        "hdf5i": "Full", "hdf5p": "Iso", "nci": "Full", "ncp": "Iso" }
 fname2method = { ".pvti.": "MPI-Indiv", ".pvtp.": "MPI-Indiv", ".posix.": "ADIOS-POSIX", 
         ".mpi.": "ADIOS-MPI", ".mpilus.": "ADIOS-MPI_Lustre", ".mpiag.": "ADIOS-MPI_Aggr",
-        ".phdf5.": "ADIOS-PHDF5", ".hdf5i.": "HDF5", ".hdf5p.": "HDF5" }
+        ".phdf5.": "ADIOS-PHDF5", ".hdf5i.": "HDF5", ".hdf5p.": "HDF5", ".nci.": "netCDF", 
+        ".ncp.": "netCDF" }
 lname2method = { "pvti": "MPI-Indiv", "pvtp": "MPI-Indiv", "POSIX": "ADIOS-POSIX", 
         "MPI ": "ADIOS-MPI", "MPI$": "ADIOS-MPI", "MPI_LUSTRE": "ADIOS-MPI_Lustre",
         "MPI_AGGREGATE": "ADIOS-MPI_Aggr", "PHDF5": "ADIOS-PHDF5", 
-        "hdf5i": "HDF5", "hdf5p": "HDF5" }
+        "hdf5i": "HDF5", "hdf5p": "HDF5", "nci": "netCDF", "ncp": "netCDF" }
 
 totalrate = -1.0
 totalvrate = -1.0

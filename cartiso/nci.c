@@ -40,6 +40,7 @@ void writenci(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
   int dims[3] = {0,0,0};
   int dimids[3] = {0,0,0};
   int err = 0;
+  int i;
 
   snprintf(fname, fnstrmax, "cart.%s_t%0*d.nc", varname, timedigits, tstep);
   dimlen = MAX(ni,MAX(nj,nk));
@@ -57,7 +58,7 @@ void writenci(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 
   err = nc_def_dim(ncid,"phony_dim_0",dimlen,&dimid); NCERR;
 
-  for(int i = 0; i < 3; i++) {
+  for(i = 0; i < 3; i++) {
     dimids[i] = dimid;
   }
 
@@ -68,7 +69,7 @@ void writenci(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 
   /* Set up MPI info */
   MPI_Info_create(&info);
-  MPI_Info_set(info, "striping_factor", "1");
+  //MPI_Info_set(info, "striping_factor", "1");
 
   /* Set up parallel access for the variable. */
   err = nc_var_par_access(ncid,varid,NC_COLLECTIVE); NCERR;

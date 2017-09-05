@@ -64,13 +64,14 @@ int main(int argc, char **argv)
   int maskTindex;
   int *ola_mask;
   int *ol_mask;
-  float mask_thres=0.0;     /* upper mask threshold  (range -1 to 1) */
+  float mask_thres=0.5;     /* upper mask threshold  (range -1 to 1) */
   float bot_mask_thres=0.5; /* bottom mask threshold (range 0.0 to (mask_thres+1)/2 ) */
   int mask_thres_index;
   struct osn_context *simpnoise;    /* Open simplex noise context */
   double heighttime, computetime, outtime;   /* Timers */
+  double initheighttime, loadbaltime;    /* Initialization timers */
 
-  const int num_varnames=4;
+  const int num_varnames=1;
   char *varnames[num_varnames];
 
   /* balance spacesplit vars */
@@ -101,12 +102,13 @@ int main(int argc, char **argv)
 #ifdef HAS_HDF5
   int hdf5out = 0;
   hsize_t *hdf5_chunk=NULL;
-  int hdf5_compress = 0;
+  char *hdf5_compress = NULL;
 #endif
 
 #ifdef HAS_ADIOS
   char      *adios_groupname="struct";
   char      *adios_method=NULL;   /* POSIX|MPI|MPI_LUSTRE|MPI_AGGREGATE|PHDF5   */
+  char      *adios_transform=NULL;    /* e.g., compression */
   struct adiosstructinfo adiosstruct_nfo;
 #endif
 
@@ -149,6 +151,9 @@ int main(int argc, char **argv)
     else if(!strcasecmp(argv[a], "--adios")) {
       adios_method = argv[++a];
     }
+    else if(!strcasecmp(argv[a], "--adios_transform")) {
+      adios_transform = argv[++a];
+    }
     else if(!strcasecmp(argv[a], "--debugIO")) {
       debugIO = 1;
     }
@@ -168,7 +173,7 @@ int main(int argc, char **argv)
       }
     }
     else if(!strcasecmp(argv[a], "--hdf5_compress")) {
-      hdf5_compress=1;
+      hdf5_compress = argv[++a];
     }
 #else
       if(rank == 0)   fprintf(stderr, "HDF5 option not available: %s\n\n", argv[a]);
@@ -182,7 +187,7 @@ int main(int argc, char **argv)
       ncout = 1;
     }
 #else
-    if(rank == 0) fprintf(stderr, "NC Option not available: $s\n\n", argv[a]);
+    if(rank == 0) fprintf(stderr, "NC Option not available: %s\n\n", argv[a]);
     print_usage(rank, NULL);
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
@@ -261,6 +266,7 @@ int main(int argc, char **argv)
 
   /* Allocate arrays */
   if (balance) {
+    timer_tick(&initheighttime, comm, 1);
     ol_mask_2dsum =  (int *) malloc((size_t)xy_dims*sizeof(int));
 
     /* initalize sums to zero */
@@ -277,56 +283,57 @@ int main(int argc, char **argv)
     sum_id = 0;
 
     /* Compute 2d sums   */
-    z = zs;
-    for(k = 0; k < nk; k++) {
-      y = ys;
-      for(j = 0; j < nj; j++) {
-	x = xs;
-	for(i = 0; i < ni; i++) {
+    y = ys;
+    for(j = 0; j < nj; j++) {
+      x = xs;
+      for(i = 0; i < ni; i++) {
 
-	  /* calculate index */
-	  x_index = i;
-	  y_index = j;
-	  z_index = k;
-	  sum_id = (y_index * x_dims) + x_index;
+        /* calculate index */
+        x_index = i;
+        y_index = j;
+        sum_id = (y_index * x_dims) + x_index;
 
-	  /* Get height and subtract bottom threshold */
-	  h_tmp =  (float)open_simplex_noise2(simpnoise, x*noisespacefreq, y*noisespacefreq)  - bot_mask_thres;
+        /* Get height and subtract bottom threshold */
+        h_tmp =  (float)open_simplex_noise2(simpnoise, x*noisespacefreq, y*noisespacefreq)  - bot_mask_thres;
 
-	  hindex = (int) ((h_tmp+1) / (mask_thres+1) * (nk-1));
+        hindex = (int) ((h_tmp+1) / (mask_thres+1) * (nk-1));
 
-	  if (hindex > maskTindex) {
-	    hindex = maskTindex;
-	  }
+        if (hindex > maskTindex) {
+          hindex = maskTindex;
+        }
 
-	  /* Calculate ol_mask values */
-	  if (z_index < maskTindex  && z_index > hindex) {
-	    tmp_mask = 0;  /* ocean */
-	  }
-	  else if (z_index <= hindex) {
-	    if (h_tmp >= mask_thres  || z_index < hindex) {
-	      tmp_mask = 1;  /* land */
-	    }
-	    else {
-	      tmp_mask = 0;  /* ocean */
-	    }
-	  }
-	  else if (z_index == maskTindex  && h_tmp <= mask_thres) {
-	    tmp_mask = 0;  /* ocean */
-	  }
-	  else {
-	    printf("WARNING: ol_mask condition not considered for Point_index: (%d,%d,%d)\n"
-		   "Point_id: %d  Height: %f HeightID: %d maskTindex=%d\n",
-		   x_index, y_index, z_index, point_id+1, h_tmp, hindex, maskTindex);
-	  }
-	  ol_mask_2dsum[sum_id] += tmp_mask;
-	  
-	  x += deltax;
+        for(k = 0; k < nk; k++) {
+          z_index = k;
+
+          /* Calculate ol_mask values */
+          if (z_index < maskTindex  && z_index > hindex) {
+            tmp_mask = 1;  /* ocean */
+          }
+          else if (z_index <= hindex) {
+            if (h_tmp >= mask_thres  || z_index < hindex) {
+              tmp_mask = 0;  /* land */
+            }
+            else {
+              tmp_mask = 1;  /* ocean */
+            }
+          }
+          else if (z_index == maskTindex  && h_tmp <= mask_thres) {
+            tmp_mask = 0;  /* ocean */
+          }
+          else {
+            printf("WARNING: ol_mask condition not considered for Point_index: (%d,%d,%d)\n"
+        	   "Point_id: %d  Height: %f HeightID: %d maskTindex=%d\n",
+        	   x_index, y_index, z_index, point_id+1, h_tmp, hindex, maskTindex);
+          }
+          ol_mask_2dsum[sum_id] += tmp_mask;
 	}
-	y += deltay;
+        
+        x += deltax;
       }
-      z += deltaz;
+      y += deltay;
     }
+    timer_tock(&initheighttime);
+    timer_collectprintstats(initheighttime, comm, 0, "Initial Height Field");
 
     if (rank == 0 && debug) {
       
@@ -352,10 +359,19 @@ int main(int argc, char **argv)
       printf("\n");
     }
 
+    /*if (rank == 0) {
+      FILE *f;
+      f = fopen("struct.olmask.dat", "w");
+      fwrite(ol_mask_2dsum, sizeof(int), ni*nj, f);
+      fclose(f);
+    } */
 
     /* Use splitspace for proc decompostion */   
+    timer_tick(&loadbaltime, comm, 1);
     init_splitspace(&factors, &rects_list, nprocs);
     splitspace(&rects_list, ni, nj, &factors, ol_mask_2dsum);
+    timer_tock(&loadbaltime);
+    timer_collectprintstats(loadbaltime, comm, 0, "Load Balancing");
 
     if (rank == 0 && debugBal) {
       print_rects(&rects_list);
@@ -388,21 +404,22 @@ int main(int argc, char **argv)
   ol_mask = (int *) malloc((size_t)cni*cnj*cnk*sizeof(int));
 
   varnames[0] = "data";
-  varnames[1] = "height";
+  /*varnames[1] = "height";
   varnames[2] = "ola_mask";
-  varnames[3] = "ol_mask";
+  varnames[3] = "ol_mask"; */
 
  /* init ADIOS */
 #ifdef HAS_ADIOS
   if (adios_method) {
-    adiosstruct_init(&adiosstruct_nfo, adios_method, adios_groupname, comm, rank, nprocs, nt,
-		     ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, deltaz, FILLVALUE);
+    adiosstruct_init(&adiosstruct_nfo, adios_method, adios_transform, adios_groupname, comm, 
+                     rank, nprocs, nt, ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, 
+                     deltaz, FILLVALUE);
     adiosstruct_addrealxvar(&adiosstruct_nfo, varnames[0], data);
 
     if (debugIO ) {
-      adiosstruct_addrealxvar(&adiosstruct_nfo, varnames[1], height);
-      adiosstruct_addintxvar(&adiosstruct_nfo, varnames[2], ola_mask);
-      adiosstruct_addintxvar(&adiosstruct_nfo, varnames[3], ol_mask);
+      adiosstruct_addrealxvar(&adiosstruct_nfo, "height", height);
+      adiosstruct_addintxvar(&adiosstruct_nfo, "ola_mask", ola_mask);
+      adiosstruct_addintxvar(&adiosstruct_nfo, "ol_mask", ol_mask);
     }
   }
 #endif
@@ -551,7 +568,7 @@ int main(int argc, char **argv)
 		is, js, ks,
 		ni, nj, nk, cni, cnj, cnk,
 		deltax, deltay, deltaz,
-		data, height, ola_mask, ol_mask, hdf5_chunk, hdf5_compress);
+		data, hdf5_chunk, hdf5_compress);
     }
 #endif
 
@@ -563,7 +580,7 @@ int main(int argc, char **argv)
       writenc(num_varnames, varnames, comm, rank, nprocs, tt,
               is, js, ks,
               ni, nj, nk, cni, cnj, cnk,
-              data,height,ola_mask,ol_mask);
+              data);
     }
 
 #endif

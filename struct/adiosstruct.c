@@ -11,11 +11,12 @@
 
 static const int fnstrmax = 4095;
 
-void adiosstruct_init(struct adiosstructinfo *nfo, char *method,
+void adiosstruct_init(struct adiosstructinfo *nfo, char *method, char *transform,
                char *name, MPI_Comm comm, int rank, int nprocs,
                int tsteps, int ni, int nj, int nk, int is, int cni, int js, int cnj,
 		      int ks, int cnk, float deltax, float deltay, float deltaz,  float fillvalue) {
   
+  nfo->transform = transform;
   nfo->name = name;
   nfo->comm = comm;
   nfo->rank = rank;
@@ -69,6 +70,8 @@ void adiosstruct_init(struct adiosstructinfo *nfo, char *method,
 
 void adiosstruct_addrealxvar(struct adiosstructinfo *nfo, char *varname, float *data) {
 
+  int64_t varid;
+
   if((nfo->nrealvars + nfo->nintvars) >= nfo->maxvars)
     return;   /* Just ignore too many variables, for now */
   
@@ -80,12 +83,15 @@ void adiosstruct_addrealxvar(struct adiosstructinfo *nfo, char *varname, float *
   adios_define_attribute_byvalue(nfo->gid, "_FillValue", varname , adios_real , 1, &nfo->fillvalue);
 
   /* add var */
-  adios_define_var(nfo->gid, varname, "", adios_real, "cnk,cnj,cni",
-		   "nk,nj,ni", "ks,js,is");
-    
+  varid = adios_define_var(nfo->gid, varname, "", adios_real, "cnk,cnj,cni",
+	                   "nk,nj,ni", "ks,js,is");
+  if(nfo->transform)
+    adios_set_transform(varid, nfo->transform);
 }
 
 void adiosstruct_addintxvar(struct adiosstructinfo *nfo, char *varname, int *data) {
+
+  int64_t varid;
 
   if((nfo->nrealvars + nfo->nintvars) >= nfo->maxvars)
     return;   /* Just ignore too many variables, for now */
@@ -94,9 +100,10 @@ void adiosstruct_addintxvar(struct adiosstructinfo *nfo, char *varname, int *dat
   nfo->nintvars++;
 
   /* add var */
-  adios_define_var(nfo->gid, varname, "", adios_integer,   "cnk,cnj,cni",
-		   "nk,nj,ni", "ks,js,is");
-    
+  varid = adios_define_var(nfo->gid, varname, "", adios_integer,   "cnk,cnj,cni",
+		          "nk,nj,ni", "ks,js,is");
+  if(nfo->transform)
+    adios_set_transform(varid, nfo->transform);
 }
 
 void adiosstruct_write(struct adiosstructinfo *nfo, int tstep) {
@@ -116,7 +123,7 @@ void adiosstruct_write(struct adiosstructinfo *nfo, int tstep) {
     
     /* Allocate buffer large enough for all data to write, if not done already */
     bufneeded = (int)(groupsize/(1024*1024));
-    bufneeded += bufneeded/10 + 10;   /* Add an extra 10% & 10MB to be sure */
+    bufneeded += bufneeded/4 + 20;   /* Add an extra 25% & 20MB to be sure */
     if(nfo->bufallocsize < bufneeded) {
 #       if ADIOS_VERSION_GE(1,10,0)
         adios_set_max_buffer_size(bufneeded);

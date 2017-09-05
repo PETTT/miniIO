@@ -31,8 +31,8 @@ ifdef ADIOS_HOME
   SRCS += adiosiso.c
 endif
 
-### if NC_DIR set then enable netCDF
-ifdef NC_DIR
+### if NETCDF_DIR set then enable netCDF
+ifdef NETCDF_DIR
 	OBJS += nci.o ncp.o
 	SRCS += nci.c ncp.c
 endif

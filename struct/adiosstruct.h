@@ -8,6 +8,7 @@
 #include <adios.h>
 
 struct adiosstructinfo {
+  char *transform;
   char *name;
   MPI_Comm comm;
   int rank;
@@ -32,7 +33,7 @@ struct adiosstructinfo {
   int64_t gid;
 };
 
-void adiosstruct_init(struct adiosstructinfo *nfo, char *method,
+void adiosstruct_init(struct adiosstructinfo *nfo, char *method, char *transform,
                char *name, MPI_Comm comm, int rank, int nprocs,
                int tsteps, int ni, int nj, int nk, int is, int cni, int js, int cnj,
 	       int ks, int cnk, float deltax, float deltay, float deltaz, float fillvalue);

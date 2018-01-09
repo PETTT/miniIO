@@ -10,6 +10,7 @@
 #include <mpi.h>
 #include "open-simplex-noise.h"
 #include "timer.h"
+#include "args.h"
 #include "splitspace.h"
 
 /* #include <limits.h> */
@@ -40,14 +41,23 @@ int main(int argc, char **argv)
   int a, i, j, k, t;            /* loop indices */
   int tt;                       /* Actual time step from tstart */
   float x, y, z;
-  double noisespacefreq = 3.5; /* Spatial frequency of noise */
-  double noisespacefreqData = 10.0; /* Spatial frequency of noise for data */
-  double noisetimefreq = 0.25;  /* Temporal frequency of noise */
+  double noisefreqmask_i = 3.5; /* Spatial frequency of noise for mask */
+  double noisefreqmask_j = 3.5; /* Spatial frequency of noise for mask */
+  int noisefreqmask_iscale = 0;  /* Scale mask spatial frequency with i tasks */
+  int noisefreqmask_jscale = 0;  /* Scale mask spatial frequency with j tasks */
+  double noisefreq_i = 10.0;    /* Spatial frequency of noise for data */
+  double noisefreq_j = 10.0;    /* Spatial frequency of noise for data */
+  double noisefreq_k = 10.0;    /* Spatial frequency of noise for data */
+  int noisefreq_iscale = 1;    /* Scale spatial frequency with i tasks */
+  int noisefreq_jscale = 1;    /* Scale spatial frequency with j tasks */
+  double noisefreq_t = 0.25;    /* Temporal frequency of noise */
   int tstart = 0;
   int nt = 10;                  /* Number of time steps */
-  int ni = 0;                   /* Global grid size */
-  int nj = 0;
-  int nk = 0;
+  int ni = 128;                   /* Global grid size */
+  int nj = 128;
+  int nk = 128;
+  int niscale = 1;              /* Scale global grid size with tasks */
+  int njscale = 1;
   int inp = 0;      /* Number of tasks in i */
   int jnp = 0;      /* Number of tasks in j */
   int knp = 1;      /* Number of tasks in k */
@@ -56,7 +66,6 @@ int main(int argc, char **argv)
   int x_index, y_index, z_index; /* point index along each axis */
   int xy_dims,  x_dims;
   float deltax, deltay, deltaz;
-  int numPoints;
   float *data;
   float *height;
   int height_index;
@@ -120,28 +129,31 @@ int main(int argc, char **argv)
   for(a = 1; a < argc; a++) {
 
     if(!strcasecmp(argv[a], "--tasks")) {
-            inp = atoi(argv[++a]);
-            jnp = atoi(argv[++a]);
+      inp = atoi(argv[++a]);
+      jnp = atoi(argv[++a]);
     } else if(!strcasecmp(argv[a], "--size")) {
-      ni = atoi(argv[++a]);
-      nj = atoi(argv[++a]);
+      atoix(argv[++a], &ni, &niscale);
+      atoix(argv[++a], &nj, &njscale);
       nk = atoi(argv[++a]);
     } else if(!strcasecmp(argv[a], "--maskthreshold")) {
       mask_thres = strtof(argv[++a], NULL);
       bot_mask_thres = (mask_thres+1.0)/2;
+    } else if(!strcasecmp(argv[a], "--noisespacefreqmask")) {
+      atodx(argv[++a], &noisefreqmask_i, &noisefreqmask_iscale);
+      atodx(argv[++a], &noisefreqmask_j, &noisefreqmask_jscale);
     } else if(!strcasecmp(argv[a], "--noisespacefreq")) {
-      noisespacefreq = strtod(argv[++a], NULL);
-    } else if(!strcasecmp(argv[a], "--noisespacefreqData")) {
-      noisespacefreqData = strtod(argv[++a], NULL);
+      atodx(argv[++a], &noisefreq_i, &noisefreq_iscale);
+      atodx(argv[++a], &noisefreq_j, &noisefreq_jscale);
+      noisefreq_k = strtod(argv[++a], NULL);
     } else if(!strcasecmp(argv[a], "--noisetimefreq")) {
-      noisetimefreq = strtod(argv[++a], NULL);
+      noisefreq_t = strtod(argv[++a], NULL);
     } else if(!strcasecmp(argv[a], "--tsteps")) {
       nt = atoi(argv[++a]);
     } else if(!strcasecmp(argv[a], "--tstart")) {
       tstart = atoi(argv[++a]);
-    }else if(!strcasecmp(argv[a], "--debug")) {
+    } else if(!strcasecmp(argv[a], "--debug")) {
       debug = 1;
-    }else if(!strcasecmp(argv[a], "--debugBal")) {
+    } else if(!strcasecmp(argv[a], "--debugBal")) {
       debugBal = 1;
     }
     else if(!strcasecmp(argv[a], "--balance")) {
@@ -200,9 +212,6 @@ int main(int argc, char **argv)
     }
    }
 
-  numPoints = ni*nj*nk;
-  npoints  = numPoints;
-
   /* Check arguments & proc counts */
   if(inp < 1 || jnp < 1 ) {
     print_usage(rank, "Error: tasks not specified or incorrect");
@@ -225,6 +234,31 @@ int main(int argc, char **argv)
   if(nt < 1 ) {
     print_usage(rank, "Error: number of timesteps not specified or incorrect");
     MPI_Abort(MPI_COMM_WORLD, 1);
+  }
+
+  /* Scale arguments specified to scale by ranks */
+  if(niscale)   ni *= inp;
+  if(njscale)   nj *= jnp;
+  if(noisefreqmask_iscale)  noisefreqmask_i *= inp;
+  if(noisefreqmask_jscale)  noisefreqmask_j *= jnp;
+  if(noisefreq_iscale)  noisefreq_i *= inp;
+  if(noisefreq_jscale)  noisefreq_j *= jnp;
+
+  npoints  = ni*nj*nk;
+
+  /* Print options */
+  if(rank == 0) {
+    printf("struct options:\n");
+    printf("      tasks: %d %d\n", inp, jnp);
+    printf("      size: %d %d %d\n", ni, nj, nk);
+    printf("      datasize: %lu bytes\n", npoints*4);
+    printf("      maskthreshold: %f\n", mask_thres);
+    printf("      noisespacefreqmask: %f %f\n", noisefreqmask_i, noisefreqmask_i);
+    printf("      noisespacefreq: %f %f %f\n", noisefreq_i, noisefreq_j, noisefreq_k);
+    printf("      noisetimefreq: %f\n", noisefreq_t);
+    printf("      tsteps: %d\n", nt);
+    printf("      tstart: %d\n", tstart);
+    printf("      balance: %d\n", balance);
   }
 
   cpers[0] = 0;  cpers[1] = 0;  cpers[2] = 0;    /* No periodicity */
@@ -294,7 +328,7 @@ int main(int argc, char **argv)
         sum_id = (y_index * x_dims) + x_index;
 
         /* Get height and subtract bottom threshold */
-        h_tmp =  (float)open_simplex_noise2(simpnoise, x*noisespacefreq, y*noisespacefreq)  - bot_mask_thres;
+        h_tmp =  (float)open_simplex_noise2(simpnoise, x*noisefreqmask_i, y*noisefreqmask_j)  - bot_mask_thres;
 
         hindex = (int) ((h_tmp+1) / (mask_thres+1) * (nk-1));
 
@@ -444,7 +478,7 @@ int main(int argc, char **argv)
 	point_id = (z_index * xy_dims) + (y_index * x_dims) + x_index;
 
 	/* Get height and subtract bottom threshold */
-	height[ii] =  (float)open_simplex_noise2(simpnoise, x*noisespacefreq, y*noisespacefreq)  - bot_mask_thres;
+	height[ii] =  (float)open_simplex_noise2(simpnoise, x*noisefreqmask_i, y*noisefreqmask_j)  - bot_mask_thres;
 
 	/* height_index = (int) height[ii]/deltaz; */
 	height_index = (int) (((height[ii]+1)/2) * (nk-1));
@@ -533,7 +567,7 @@ int main(int argc, char **argv)
 
 	  if ( ol_mask[ii] == 0) {
 	    /* if  ( ola_mask[ii] == 0) { */
-	    data[ii] = (float)open_simplex_noise4(simpnoise, x*noisespacefreqData, y*noisespacefreqData, z*noisespacefreqData, tt*noisetimefreq);
+	    data[ii] = (float)open_simplex_noise4(simpnoise, x*noisefreq_i, y*noisefreq_j, z*noisefreq_k, tt*noisefreq_t);
 	  }
 	  else {
 	    data[ii] = FILLVALUE;
@@ -626,23 +660,29 @@ void print_usage(int rank, const char *errstr)
 	  "    --tasks INP JNP: Specifies the parallel decomposition of tasks\n"
 	  "      INP : # of tasks along the I (X) axis\n"
 	  "      JNP : # of tasks along the J (Y) axis\n"
-	  "        NOTE that INP * JNP * KNP == NPROCS is required!\n"
-	  "    --size NI NJ NK : Specifies the size of the grid\n"
+	  "        NOTE that INP * JNP == NPROCS is required!\n"
+	  "  Recommended:\n"
+	  "    --size NI[x] NJ[x] NK : Specifies the size of the grid\n"
 	  "      NI, NJ, NK : Number of grid points along the I,J,K axes respectively\n"
-	  "      valid values are > 1\n\n"
+	  "      Put an x after NI or NJ to indicate that the value scales with INP/JNP\n"
+	  "      valid values are > 1 with or without x \n"
+	  "      Default: 128x 128x 128\n\n"
 	  "  Optional:\n"
 	  "    --debug : Turns on debugging print statements \n"
 	  "    --debugBal : Turns on debugging print statements for balancing\n"
 	  "    --maskthreshold MT : Mask theshold; valid values are floats between -1.0 and 1.0 \n"
 	  "      MT : mask threshold value; Default: 0.0\n"
-	  "    --noisespacefreq FNS : Spatial frequency of noise function for land\n"
-	  "    --noisespacefreqData FNS : Spatial frequency of noise function for data\n"
-	  "      FNS : space frequency value; Default: 10.0\n"
+	  "    --noisespacefreqmask FNSi[x] FNSj[x] : Spatial frequency of noise function \n"
+	  "                                           for land mask\n"
+	  "      FNS[x] : space frequency value; Default: 3.5 3.5\n"
+	  "    --noisespacefreq FNSi[x] FNSj[x] FNSk : Spatial frequency of noise function \n"
+	  "                                            for data\n"
+	  "      FNS[x] : space frequency value; Default: 10.0x 10.0x 10.0\n"
 	  "    --noisetimefreq FNT : Temporal frequency of noise function\n"
 	  "      FNT : time frequency value;  Default: 0.25\n"
 	  "    --tsteps NT : Number of time steps; valid values are > 0 (Default value 10)\n"
 	  "    --tstart TS : Starting time step; valid values are >= 0  (Default value 0)\n"
-	  "    --balance : Turns on load balancing \n"
+	  "    --balance : Turns on computational load balancing \n"
 
 #ifdef HAS_ADIOS
 	  "    --adios [POSIX|MPI|MPI_LUSTRE|MPI_AGGREGATE|PHDF5]: Enable ADIOS output\n"

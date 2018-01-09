@@ -54,9 +54,9 @@ for fname in sys.argv[a:]:
             
             print ls
             cores = int(ls[0][4:]) *  int(ls[1])
-            size = ls[2][3:] + 'x' +ls[3][3:] + 'x' + ls[4][3:]
-            sizeprod = float(ls[2][3:]) * float(ls[3][3:]) * float(ls[4][3:])
-            sizegb = sizeprod*4/1024**3
+            #size = ls[2][3:] + 'x' +ls[3][3:] + 'x' + ls[4][3:]
+            #sizeprod = float(ls[2][3:]) * float(ls[3][3:]) * float(ls[4][3:])
+            #sizegb = sizeprod*4/1024**3
             
             # Determine method from line; make sure matches one from file name
             method2key = next((x for x in lname2method.keys() if re.search(x, l)), False)
@@ -83,6 +83,11 @@ for fname in sys.argv[a:]:
             #if bal: 
             #   method = method + "_Bal"
             #   bal = False
+        elif ls[0] == "size:":
+            size = ls[1] + "x" + ls[2] + "x" + ls[3]
+        
+        elif ls[0] == "datasize:":
+            sizegb = float(ls[1]) / 1024**3
 
         elif ls[0] == "Output":
             outtime = float(ls[11][:-1])

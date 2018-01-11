@@ -212,6 +212,14 @@ int main(int argc, char **argv)
     }
    }
 
+  /* Scale arguments specified to scale by ranks */
+  if(niscale)   ni *= inp;
+  if(njscale)   nj *= jnp;
+  if(noisefreqmask_iscale)  noisefreqmask_i *= inp;
+  if(noisefreqmask_jscale)  noisefreqmask_j *= jnp;
+  if(noisefreq_iscale)  noisefreq_i *= inp;
+  if(noisefreq_jscale)  noisefreq_j *= jnp;
+
   /* Check arguments & proc counts */
   if(inp < 1 || jnp < 1 ) {
     print_usage(rank, "Error: tasks not specified or incorrect");
@@ -235,14 +243,6 @@ int main(int argc, char **argv)
     print_usage(rank, "Error: number of timesteps not specified or incorrect");
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
-
-  /* Scale arguments specified to scale by ranks */
-  if(niscale)   ni *= inp;
-  if(njscale)   nj *= jnp;
-  if(noisefreqmask_iscale)  noisefreqmask_i *= inp;
-  if(noisefreqmask_jscale)  noisefreqmask_j *= jnp;
-  if(noisefreq_iscale)  noisefreq_i *= inp;
-  if(noisefreq_jscale)  noisefreq_j *= jnp;
 
   npoints  = ni*nj*nk;
 

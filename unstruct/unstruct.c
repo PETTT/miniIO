@@ -383,8 +383,23 @@ int main(int argc, char **argv)
         printf("nelems2: %llu , nelems3: %llu\n"
                "data size per task = %llu , all tasks = %llu\n",
                nelems2, nelems3, datasize, datasize*nprocs);
-    }
+#ifdef HAS_HDF5
+	printf("Enable HDF5: ");
+	if(hdf5out)
+	  printf("yes\n");
+	else
+	  printf("no\n");
 
+	if(hdf5_chunk)
+	  printf("Enable HDF5 chunking: %lld %lld %lld \n", hdf5_chunk[0], hdf5_chunk[1], hdf5_chunk[2]);
+	
+	printf("Enable HDF5 compression: ");
+	if(hdf5_compress)
+	  printf("yes\n");
+	else
+	  printf("no\n");
+#endif
+    }
     /*## Add Output Modules' Initialization Here ##*/
 
 #ifdef HAS_ADIOS

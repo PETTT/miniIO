@@ -4,21 +4,7 @@ ifeq ($(LIBS),)
   LIBS =
 endif
 
-HOSTNAME := $(shell hostname)
-ifeq ($(findstring .mil,$(HOSTNAME)),.mil)
-  ifeq ($(findstring topaz,$(HOSTNAME)),topaz)
-   CC = icc
-   FC = ifort
-   LIBS = -lmpi
-  else
-   CC = cc
-   FC = ftn
-  endif
-else
-  CC ?= mpicc
-  CXX ?= mpicxx
-  FC ?= mpif90
-endif
+CC ?= mpicc
 
 # Optimization and debugging flags, (un)comment as desired
 OPT = -O0
@@ -31,12 +17,6 @@ DBG = -ggdb -g3
 ifeq ($(CFLAGS),)
   CFLAGS =
 endif
-ifeq ($(CXXFLAGS),)
-  CXXFLAGS =
-endif
-ifeq ($(FCFLAGS),)
-  FCFLAGS =
-endif
 ifeq ($(LDFLAGS),)
   LDFLAGS =
 endif
@@ -45,8 +25,6 @@ LIBS += -lm
 # You should probably leave the rest below alone
 
 CFLAGS += $(OPT) $(DBG) -I..
-CXXFLAGS += $(OPT) $(DBG) -I..
-FCFLAGS += $(OPT) $(DBG) -I..
 LDFLAGS += $(OPT) $(DBG) -I..
 
 # Common rules for those needing osn
@@ -80,9 +58,8 @@ endif
 
 ### if HDF5_DIR is set then enable HDF5 ###
 ifdef HDF5_DIR
-  LIBS += $(HDF5_DIR)/lib/libhdf5.a -lz -ldl
-# setenv LD_LIBRARY_PATH $HDF5_DIR/lib
 #  LIBS += -L$(HDF5_DIR)/lib/ -lhdf5 -lz -ldl  
+  LIBS += $(HDF5_DIR)/lib/libhdf5.a -lz -ldl
   INCLUDE += -I$(HDF5_DIR)/include
   CFLAGS += -DHAS_HDF5
 endif

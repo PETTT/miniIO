@@ -7,8 +7,8 @@ endif
 CC ?= mpicc
 
 # Optimization and debugging flags, (un)comment as desired
-OPT = -O2
-DBG = -g
+OPT ?= -O2
+DBG ?= -g
 
 # Add HDF5 library, set to install directory
 # ** set via the HDF5_DIR environment variable **

@@ -62,7 +62,7 @@ int main(int argc, char **argv)
   int jnp = 0;      /* Number of tasks in j */
   int knp = 1;      /* Number of tasks in k */
   int numtask;                   /* task per processor */
-  int point_id, tmp_id;          /* grid point id */
+  uint64_t point_id;          /* grid point id */
   int x_index, y_index, z_index; /* point index along each axis */
   int xy_dims,  x_dims;
   float deltax, deltay, deltaz;
@@ -244,14 +244,14 @@ int main(int argc, char **argv)
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
-  npoints  = ni*nj*nk;
+  npoints  = (uint64_t)ni*nj*nk;
 
   /* Print options */
   if(rank == 0) {
     printf("struct options:\n");
     printf("      tasks: %d %d\n", inp, jnp);
     printf("      size: %d %d %d\n", ni, nj, nk);
-    printf("      datasize: %lu bytes\n", npoints*4);
+    printf("      datasize: %llu bytes\n", npoints*4);
     printf("      maskthreshold: %f\n", mask_thres);
     printf("      noisespacefreqmask: %f %f\n", noisefreqmask_i, noisefreqmask_i);
     printf("      noisespacefreq: %f %f %f\n", noisefreq_i, noisefreq_j, noisefreq_k);
@@ -357,7 +357,7 @@ int main(int argc, char **argv)
           else {
             printf("WARNING: ol_mask condition not considered for Point_index: (%d,%d,%d)\n"
         	   "Point_id: %d  Height: %f HeightID: %d maskTindex=%d\n",
-        	   x_index, y_index, z_index, point_id+1, h_tmp, hindex, maskTindex);
+        	   x_index, y_index, z_index, sum_id+1, h_tmp, hindex, maskTindex);
           }
           ol_mask_2dsum[sum_id] += tmp_mask;
 	}
@@ -475,7 +475,7 @@ int main(int argc, char **argv)
 	z_index = (int) (z/deltaz);
 
 	/* calculate point index */
-	point_id = (z_index * xy_dims) + (y_index * x_dims) + x_index;
+	point_id = ((uint64_t)z_index * xy_dims) + (y_index * x_dims) + x_index;
 
 	/* Get height and subtract bottom threshold */
 	height[ii] =  (float)open_simplex_noise2(simpnoise, x*noisefreqmask_i, y*noisefreqmask_j)  - bot_mask_thres;

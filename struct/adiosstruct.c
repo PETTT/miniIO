@@ -125,10 +125,12 @@ void adiosstruct_write(struct adiosstructinfo *nfo, int tstep) {
     bufneeded = (int)(groupsize/(1024*1024));
     bufneeded += bufneeded/4 + 20;   /* Add an extra 25% & 20MB to be sure */
     if(nfo->bufallocsize < bufneeded) {
-#       if ADIOS_VERSION_GE(1,10,0)
-        adios_set_max_buffer_size(bufneeded);
+#       if ADIOS_VERSION_GE(1,13,0)
+        /* Don't set any max buffer size - seems to work best without it */
+#       elif ADIOS_VERSION_GE(1,10,0)
+        adios_set_max_buffer_size(bufneeded);    /* Set kludgy max buffer size */
 #       else
-        adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, bufneeded);
+        adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, bufneeded);  /* Old size */
 #       endif
         nfo->bufallocsize = bufneeded;
     }

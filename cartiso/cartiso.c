@@ -84,7 +84,7 @@ void print_usage(int rank, const char *errstr)
 "      FNS : space frequency value; Default: 10.0\n"
 "    --noisetimefreq FNT : Temporal frequency of noise function\n"
 "      FNT : time frequency value;  Default: 0.25\n"
-"    --tsteps NT : Number of time steps; valid values are > 1\n"
+"    --tsteps NT : Number of time steps; valid values are > 0\n"
 "    --tstart TS : Starting time step; valid values are > 0\n"
 "    --sin2gauss : Mode that 'morphs' between a sinusoid and a Gaussian over all\n"
 "                  time steps.  This is the default if no mode is specified\n"
@@ -195,7 +195,7 @@ int main(int argc, char **argv)
     double noisespacefreq = 10.0;   /* Spatial frequency of noise */
     double noisetimefreq = 0.25;    /* Temporal frequency of noise */
     int tstart = 0;
-    int nt = 50;  /* Number of time steps */
+    int nt = 11;  /* Number of time steps */
     typedef enum { sin2gauss, gaussmove, gaussresize } modetype;
     modetype mode = sin2gauss;       /* Time animation mode */
     int gaussmovebackward = 0;       /* Whether gaussmove goes backward */
@@ -375,6 +375,10 @@ int main(int argc, char **argv)
         print_usage(rank, "Error: size not specified or incorrect");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
+    if(nt < 1) {
+        print_usage(rank, "Error: tsteps incorrect, must be > 0");
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
     if(inp*jnp*knp != nprocs) {
         print_usage(rank, "Error: product of tasks does not equal total MPI tasks");
         MPI_Abort(MPI_COMM_WORLD, 1);
@@ -468,11 +472,14 @@ int main(int argc, char **argv)
     /* Main loops */
 
     for(t = 0, tt = tstart; t < nt; t++, tt++) {
-        float tpar = (float)t / (nt-1);    /* Time anim. parameter [0,1] */
+        float tpar = (float)t;    /* Time anim. parameter [0,1] */
         float alpha = 1.f;        /* Time parameter: changes for sin2gauss */
         float sinshift, sinscale, sigmax2, sigmay2, sigmaz2;
         float tpar_sfc;    /* Time parameter between two sfc points */
         size_t ii;     /* data index */
+
+        if(nt > 1)      /* Rescale tpar [0,1] if num timesteps > 1 */
+           tpar = (float)t / (nt-1);
 
         if(rank == 0) {
             printf("t = %d\n", tt);

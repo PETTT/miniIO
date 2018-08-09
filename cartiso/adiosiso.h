@@ -8,6 +8,7 @@
 
 struct adiosisoinfo {
     char *name;
+    char *transform;
     MPI_Comm comm;
     int rank;
     int nprocs;
@@ -24,7 +25,7 @@ struct adiosisoinfo {
     int64_t gid;
 };
 
-void adiosiso_init(struct adiosisoinfo *nfo, char *method, char *name,
+void adiosiso_init(struct adiosisoinfo *nfo, char *method, char *transform, char *name,
         MPI_Comm comm, int rank, int nprocs, int tsteps, int ni, int nj, int nk,
         int cni, int cnj, int cnk, char *adiosopts);
 

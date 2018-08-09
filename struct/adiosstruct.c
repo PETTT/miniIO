@@ -12,12 +12,14 @@
 static const int fnstrmax = 4095;
 
 void adiosstruct_init(struct adiosstructinfo *nfo, char *method, char *transform,
-               char *name, MPI_Comm comm, int rank, int nprocs,
+               char *name, char *adiosopts, MPI_Comm comm, int rank, int nprocs,
                int tsteps, int ni, int nj, int nk, int is, int cni, int js, int cnj,
-		      int ks, int cnk, float deltax, float deltay, float deltaz,  float fillvalue) {
-  
-  nfo->transform = transform;
+		      int ks, int cnk, float deltax, float deltay, float deltaz,  float fillvalue) 
+{
+  static char emptystr[] = "";
+    
   nfo->name = name;
+  nfo->transform = transform;
   nfo->comm = comm;
   nfo->rank = rank;
   nfo->nprocs = nprocs;
@@ -46,10 +48,12 @@ void adiosstruct_init(struct adiosstructinfo *nfo, char *method, char *transform
   
   nfo->bufallocsize = 0;
 
+  if(!adiosopts)  adiosopts = emptystr;
+
   /* Set up ADIOS */
   adios_init_noxml(comm);
   adios_declare_group(&nfo->gid, nfo->name, "", adios_flag_no);
-  adios_select_method(nfo->gid, method, "", "");
+  adios_select_method(nfo->gid, method, adiosopts, "");
 
   /* Define output variables */
   adios_define_var(nfo->gid, "rank", "", adios_integer, "", "", "");

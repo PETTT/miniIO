@@ -11,7 +11,7 @@
 static const int fnstrmax = 4095;
 
 
-void adiosiso_init(struct adiosisoinfo *nfo, char *method, char *name,
+void adiosiso_init(struct adiosisoinfo *nfo, char *method, char *transform, char *name,
         MPI_Comm comm, int rank, int nprocs, int tsteps, int ni, int nj, int nk,
         int cni, int cnj, int cnk, char *adiosopts)
 {
@@ -19,6 +19,7 @@ void adiosiso_init(struct adiosisoinfo *nfo, char *method, char *name,
 
     /* Set up struct, haven't decided if using all of these yet */
     nfo->name = name;
+    nfo->transform = transform;
     nfo->comm = comm;
     nfo->rank = rank;
     nfo->nprocs = nprocs;
@@ -60,11 +61,15 @@ void adiosiso_init(struct adiosisoinfo *nfo, char *method, char *name,
 
 void adiosiso_addxvar(struct adiosisoinfo *nfo, char *varname)
 {
+    int64_t varid;
     if(nfo->numxvars > nfo->maxxvars)
         return;   /* Just ignore too many variables, for now */
     nfo->xvarnames[nfo->numxvars] = varname;
     nfo->numxvars++;
-    adios_define_var(nfo->gid, varname, "", adios_real, "cnpoints", "npoints", "cstart");
+    varid = adios_define_var(nfo->gid, varname, "", adios_real, 
+                             "cnpoints", "npoints", "cstart");
+    if(nfo->transform)
+        adios_set_transform(varid, nfo->transform);
 }
 
 void adiosiso_write(struct adiosisoinfo *nfo, int tstep, uint64_t ntris, float *points,
@@ -94,7 +99,9 @@ void adiosiso_write(struct adiosisoinfo *nfo, int tstep, uint64_t ntris, float *
     bufneeded = (int)(groupsize/(1024*1024));
     bufneeded += bufneeded/10 + 5;   /* Add an extra 10% & 5MB to be sure */
     if(nfo->bufallocsize < bufneeded) {
-#       if ADIOS_VERSION_GE(1,10,0)
+#       if ADIOS_VERSION_GE(1,13,0)
+        /* Don't set any max buffer size - seems to work best without it */
+#       elif ADIOS_VERSION_GE(1,10,0) 
         adios_set_max_buffer_size(bufneeded);
 #       else
         adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, bufneeded);

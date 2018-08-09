@@ -18,6 +18,8 @@
 
 static const float FILLVALUE = -999;
 
+/*## Add Output Modules' Includes Here ##*/
+
 #ifdef HAS_ADIOS
 #  include "adiosstruct.h"
 #endif
@@ -30,7 +32,70 @@ static const float FILLVALUE = -999;
 #  include "hdf5struct.h"
 #endif
 
-void print_usage(int rank, const char *errstr);
+/*## End of Output Module Includes ##*/
+
+
+void print_usage(int rank, const char *errstr)
+{
+  if(rank != 0)  return;
+  if(errstr)
+    fprintf(stderr, "%s\n\n", errstr);
+  fprintf(stderr,
+	  "Usage: mpi_launcher [-n|-np NPROCS] ./struct --tasks INP JNP --size NI NJ NK [options]\n"
+	  "    NPROCS : # of tasks launched by MPI; may or may not be implied or required by system\n\n"
+	  "  Required:\n"
+	  "    --tasks INP JNP: Specifies the parallel decomposition of tasks\n"
+	  "      INP : # of tasks along the I (X) axis\n"
+	  "      JNP : # of tasks along the J (Y) axis\n"
+	  "        NOTE that INP * JNP == NPROCS is required!\n"
+	  "  Recommended:\n"
+	  "    --size NI[x] NJ[x] NK : Specifies the size of the grid\n"
+	  "      NI, NJ, NK : Number of grid points along the I,J,K axes respectively\n"
+	  "      Put an x after NI or NJ to indicate that the value scales with INP/JNP\n"
+	  "      valid values are > 1 with or without x \n"
+	  "      Default: 128x 128x 128\n\n"
+	  "  Optional:\n"
+	  "    --debug : Turns on debugging print statements \n"
+	  "    --debugBal : Turns on debugging print statements for balancing\n"
+	  "    --maskthreshold MT : Mask theshold; valid values are floats between -1.0 and 1.0 \n"
+	  "      MT : mask threshold value; Default: 0.0\n"
+	  "    --noisespacefreqmask FNSi[x] FNSj[x] : Spatial frequency of noise function \n"
+	  "                                           for land mask\n"
+	  "      FNS[x] : space frequency value; Default: 3.5 3.5\n"
+	  "    --noisespacefreq FNSi[x] FNSj[x] FNSk : Spatial frequency of noise function \n"
+	  "                                            for data\n"
+	  "      FNS[x] : space frequency value; Default: 10.0x 10.0x 10.0\n"
+	  "    --noisetimefreq FNT : Temporal frequency of noise function\n"
+	  "      FNT : time frequency value;  Default: 0.25\n"
+	  "    --tsteps NT : Number of time steps; valid values are > 0 (Default value 10)\n"
+	  "    --tstart TS : Starting time step; valid values are >= 0  (Default value 0)\n"
+	  "    --balance : Turns on computational load balancing \n"
+
+    /*## Add Output Modules' Usage String ##*/
+
+#ifdef HAS_ADIOS
+	  "    --adios [POSIX|MPI|MPI_LUSTRE|MPI_AGGREGATE|PHDF5]: Enable ADIOS output\n"
+      "    --adiosopts OPTS : Pass options to ADIOS\n"
+      "    --adios_transform TRANSFORM : Pass a transform, e.g., compression, to ADIOS\n"
+	  "    --debugIO : Turns on debugging IO (corrently only works with ADIOS IO) \n"
+#endif
+
+
+#ifdef HAS_HDF5
+	  "    --hdf5 : Enable HDF5 output (i.e. XDMF)\n"
+	  "    --hdf5_chunk y z : Chunk Size y z \n"
+		  "      valid values are  NJ/JNP/y,NK/z\n"
+	  "    --hdf5_compress : enable compression \n"
+#endif
+
+#ifdef HAS_NC
+      "    --nc : Enable NetCDF Output\n"
+#endif
+      
+    /*## End of Output Module Usage Strings ##*/
+
+	  );
+}
 
 int main(int argc, char **argv)
 {
@@ -104,6 +169,8 @@ int main(int argc, char **argv)
   uint64_t cnpoints=0;
   uint64_t npoints=0;
 
+  /*## Add Output Modules' Variables Here ##*/
+  
 #ifdef HAS_NC
     int ncout = 0;
 #endif
@@ -119,8 +186,11 @@ int main(int argc, char **argv)
   char      *adios_method=NULL;   /* POSIX|MPI|MPI_LUSTRE|MPI_AGGREGATE|PHDF5   */
   char      *adios_transform=NULL;    /* e.g., compression */
   struct adiosstructinfo adiosstruct_nfo;
+  char      *adiosopts = NULL;
 #endif
 
+  /*## End of Output Module Variables ##*/
+  
   MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
@@ -159,6 +229,9 @@ int main(int argc, char **argv)
     else if(!strcasecmp(argv[a], "--balance")) {
       balance = 1;
     }
+
+    /*## Add Output Modules' Command Line Arguments Here ##*/
+    
 #ifdef HAS_ADIOS
     else if(!strcasecmp(argv[a], "--adios")) {
       adios_method = argv[++a];
@@ -166,10 +239,15 @@ int main(int argc, char **argv)
     else if(!strcasecmp(argv[a], "--adios_transform")) {
       adios_transform = argv[++a];
     }
+    else if(!strcasecmp(argv[a], "--adiosopts")) {
+      adiosopts = argv[++a];
+    }
+
     else if(!strcasecmp(argv[a], "--debugIO")) {
       debugIO = 1;
     }
 #endif
+
     else if( !strcasecmp(argv[a], "--hdf5") )
       {
 #ifdef HAS_HDF5
@@ -193,17 +271,20 @@ int main(int argc, char **argv)
       MPI_Abort(MPI_COMM_WORLD, 1);
     }
 #endif
+
   else if (!strcasecmp(argv[a],"--nc") )
     {
 #ifdef HAS_NC
       ncout = 1;
     }
 #else
-    if(rank == 0) fprintf(stderr, "NC Option not available: %s\n\n", argv[a]);
+    if(rank == 0)  fprintf(stderr, "NC Option not available: %s\n\n", argv[a]);
     print_usage(rank, NULL);
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 #endif
+
+    /*## End of Output Module Command Line Arguments ##*/
 
     else {
       if(rank == 0)   fprintf(stderr, "Option not recognized: %s\n\n", argv[a]);
@@ -442,15 +523,17 @@ int main(int argc, char **argv)
   varnames[2] = "ola_mask";
   varnames[3] = "ol_mask"; */
 
+  /*## Add Output Modules' Initialization Here ##*/
+  
  /* init ADIOS */
 #ifdef HAS_ADIOS
   if (adios_method) {
-    adiosstruct_init(&adiosstruct_nfo, adios_method, adios_transform, adios_groupname, comm, 
-                     rank, nprocs, nt, ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, 
-                     deltaz, FILLVALUE);
+    adiosstruct_init(&adiosstruct_nfo, adios_method, adios_transform, adios_groupname, 
+                     adiosopts, comm, rank, nprocs, nt, ni, nj, nk, is, cni, js, cnj, ks, cnk, 
+                     deltax, deltay, deltaz, FILLVALUE);
     adiosstruct_addrealxvar(&adiosstruct_nfo, varnames[0], data);
 
-    if (debugIO ) {
+    if (debugIO) {
       adiosstruct_addrealxvar(&adiosstruct_nfo, "height", height);
       adiosstruct_addintxvar(&adiosstruct_nfo, "ola_mask", ola_mask);
       adiosstruct_addintxvar(&adiosstruct_nfo, "ol_mask", ol_mask);
@@ -458,6 +541,7 @@ int main(int argc, char **argv)
   }
 #endif
 
+  /*## End of Output Module Initialization ##*/
  
   /* generate masked grid */
   /* Spatial loops */
@@ -503,7 +587,7 @@ int main(int argc, char **argv)
 	}
 	else {
 	  printf("WARNING: ola_mask condition not considered for Point_index: (%d,%d,%d)\n"
-		 "Point_id: %d  Height: %f HeightID: %d  mask_thres_index=%d\n",
+		 "Point_id: %llu  Height: %f HeightID: %d  mask_thres_index=%d\n",
 		 x_index, y_index, z_index, point_id+1, height[ii], height_index, mask_thres_index);
 	}
 
@@ -530,7 +614,7 @@ int main(int argc, char **argv)
 	}
 	else {
 	  printf("WARNING: ol_mask condition not considered for Point_index: (%d,%d,%d)\n"
-		 "Point_id: %d  Height: %f HeightID: %d maskTindex=%d\n",
+		 "Point_id: %llu  Height: %f HeightID: %d maskTindex=%d\n",
 		 x_index, y_index, z_index, point_id+1, height[ii], hindex, maskTindex);
 	}
 
@@ -540,7 +624,7 @@ int main(int argc, char **argv)
 	  printf("LDims: (%d,%d,%d)\n", cni, cnj, cnk);
 	  printf("GDims: (%d,%d,%d)\n", ni, nj, nk);
 	  printf("SDims: (%d,%d,%d)\n", is, js, ks);
-	  printf("Point_index: (%d,%d,%d), Point_id:  %d\n", x_index, y_index, z_index,  point_id+1);
+	  printf("Point_index: (%d,%d,%d), Point_id:  %llu\n", x_index, y_index, z_index,  point_id+1);
 	  printf("Point_pos: (%f, %f, %f)  mask_thres_index %d -> %d\n", x, y, z, mask_thres_index, maskTindex);
 	  printf("Height: %f HeightID: %d -> %d ola_mask=%d -> %d\n", height[ii], height_index,  hindex, ola_mask[ii], ol_mask[ii]);
 	}
@@ -584,6 +668,8 @@ int main(int argc, char **argv)
 
     timer_tick(&outtime, comm, 1);
 
+    /*## Add OUTPUT Modules' Function Calls Per Timestep Here ##*/
+    
 #ifdef HAS_ADIOS
     if (adios_method) {
        if(rank == 0) {
@@ -616,8 +702,9 @@ int main(int argc, char **argv)
               ni, nj, nk, cni, cnj, cnk,
               data);
     }
-
 #endif
+
+    /*## End of OUTPUT Module Function Calls Per Timestep ##*/
 
     timer_tock(&outtime);
     timer_collectprintstats(computetime, comm, 0, "   Compute");
@@ -626,7 +713,9 @@ int main(int argc, char **argv)
 
   }
 
-    /* finalize ADIOS */
+  /*## Add Output Modules' Cleanup Here ##*/
+    
+  /* finalize ADIOS */
 #ifdef HAS_ADIOS
   if (adios_method) adiosstruct_finalize(&adiosstruct_nfo);
 #endif
@@ -636,6 +725,8 @@ int main(int argc, char **argv)
     free(hdf5_chunk);
 #endif
 
+  /*## End of Output Module Cleanup ##*/
+  
   open_simplex_noise_free(simpnoise);
   free(data);
   free(height);
@@ -648,60 +739,3 @@ int main(int argc, char **argv)
 }
 
 
-void print_usage(int rank, const char *errstr)
-{
-  if(rank != 0)  return;
-  if(errstr)
-    fprintf(stderr, "%s\n\n", errstr);
-  fprintf(stderr,
-	  "Usage: mpi_launcher [-n|-np NPROCS] ./struct --tasks INP JNP --size NI NJ NK [options]\n"
-	  "    NPROCS : # of tasks launched by MPI; may or may not be implied or required by system\n\n"
-	  "  Required:\n"
-	  "    --tasks INP JNP: Specifies the parallel decomposition of tasks\n"
-	  "      INP : # of tasks along the I (X) axis\n"
-	  "      JNP : # of tasks along the J (Y) axis\n"
-	  "        NOTE that INP * JNP == NPROCS is required!\n"
-	  "  Recommended:\n"
-	  "    --size NI[x] NJ[x] NK : Specifies the size of the grid\n"
-	  "      NI, NJ, NK : Number of grid points along the I,J,K axes respectively\n"
-	  "      Put an x after NI or NJ to indicate that the value scales with INP/JNP\n"
-	  "      valid values are > 1 with or without x \n"
-	  "      Default: 128x 128x 128\n\n"
-	  "  Optional:\n"
-	  "    --debug : Turns on debugging print statements \n"
-	  "    --debugBal : Turns on debugging print statements for balancing\n"
-	  "    --maskthreshold MT : Mask theshold; valid values are floats between -1.0 and 1.0 \n"
-	  "      MT : mask threshold value; Default: 0.0\n"
-	  "    --noisespacefreqmask FNSi[x] FNSj[x] : Spatial frequency of noise function \n"
-	  "                                           for land mask\n"
-	  "      FNS[x] : space frequency value; Default: 3.5 3.5\n"
-	  "    --noisespacefreq FNSi[x] FNSj[x] FNSk : Spatial frequency of noise function \n"
-	  "                                            for data\n"
-	  "      FNS[x] : space frequency value; Default: 10.0x 10.0x 10.0\n"
-	  "    --noisetimefreq FNT : Temporal frequency of noise function\n"
-	  "      FNT : time frequency value;  Default: 0.25\n"
-	  "    --tsteps NT : Number of time steps; valid values are > 0 (Default value 10)\n"
-	  "    --tstart TS : Starting time step; valid values are >= 0  (Default value 0)\n"
-	  "    --balance : Turns on computational load balancing \n"
-
-#ifdef HAS_ADIOS
-	  "    --adios [POSIX|MPI|MPI_LUSTRE|MPI_AGGREGATE|PHDF5]: Enable ADIOS output\n"
-	  "    --debugIO : Turns on debugging IO (corrently only works with ADIOS IO) \n"
-#endif
-
-
-#ifdef HAS_HDF5
-	  "    --hdf5 : Enable HDF5 output (i.e. XDMF)\n"
-	  "    --hdf5_chunk y z : Chunk Size y z \n"
-		  "      valid values are  NJ/JNP/y,NK/z\n"
-	  "    --hdf5_compress : enable compression \n"
-#endif
-
-#ifdef HAS_NC
-      "    --nc : Enable NetCDF Output\n"
-#endif
-
-	  );
-
-
-}

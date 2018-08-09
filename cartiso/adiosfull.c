@@ -11,7 +11,7 @@
 
 static const int fnstrmax = 4095;
 
-void adiosfull_init(struct adiosfullinfo *nfo, char *method,
+void adiosfull_init(struct adiosfullinfo *nfo, char *method, char *transform,
                char *name, MPI_Comm comm, int rank, int nprocs,
                int tsteps, int ni, int nj, int nk, int is, int cni, int js, int cnj,
                int ks, int cnk, float deltax, float deltay, float deltaz, char *adiosopts)
@@ -25,6 +25,7 @@ void adiosfull_init(struct adiosfullinfo *nfo, char *method,
 
     /* Set up struct */
     nfo->name = name;
+    nfo->transform = transform;
     nfo->comm = comm;
     nfo->rank = rank;
     nfo->nprocs = nprocs;
@@ -74,13 +75,16 @@ void adiosfull_init(struct adiosfullinfo *nfo, char *method,
 
 void adiosfull_addvar(struct adiosfullinfo *nfo, char *varname, float *data)
 {
+    int64_t varid;
     if(nfo->nvars >= nfo->maxvars)
         return;   /* Just ignore too many variables, for now */
     nfo->varnames[nfo->nvars] = varname;
     nfo->datas[nfo->nvars] = data;
     nfo->nvars++;
-    adios_define_var(nfo->gid, varname, "", adios_real, "cni,cnj,cnk",
-                     "ni,nj,nk", "is,js,ks");
+    varid = adios_define_var(nfo->gid, varname, "", adios_real, "cni,cnj,cnk",
+                             "ni,nj,nk", "is,js,ks");
+    if(nfo->transform)
+        adios_set_transform(varid, nfo->transform);
 }
 
 void adiosfull_write(struct adiosfullinfo *nfo, int tstep)
@@ -103,7 +107,9 @@ void adiosfull_write(struct adiosfullinfo *nfo, int tstep)
     bufneeded = (int)(groupsize/(1024*1024));
     bufneeded += bufneeded/8 + 2;   /* Add an extra 12.5% & 2MB to be sure */
     if(nfo->bufallocsize < bufneeded) {
-#       if ADIOS_VERSION_GE(1,10,0)
+#       if ADIOS_VERSION_GE(1,13,0)
+        /* Don't set any max buffer size - seems to work best without it */
+#       elif ADIOS_VERSION_GE(1,10,0)
         adios_set_max_buffer_size(bufneeded);
 #       else
         adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, bufneeded);

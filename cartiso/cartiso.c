@@ -39,6 +39,7 @@
 
 /*## End of Output Module Includes ##*/
 
+
 void print_usage(int rank, const char *errstr)
 {
     if(rank != 0)  return;
@@ -84,6 +85,7 @@ void print_usage(int rank, const char *errstr)
 "      FNS : space frequency value; Default: 10.0\n"
 "    --noisetimefreq FNT : Temporal frequency of noise function\n"
 "      FNT : time frequency value;  Default: 0.25\n"
+"    --fulloutputnoiseonly : Only output the noise field for full output\n"
 "    --tsteps NT : Number of time steps; valid values are > 0\n"
 "    --tstart TS : Starting time step; valid values are > 0\n"
 "    --sin2gauss : Mode that 'morphs' between a sinusoid and a Gaussian over all\n"
@@ -104,9 +106,11 @@ void print_usage(int rank, const char *errstr)
 #endif
 
 #ifdef HAS_ADIOS
-    fprintf(stderr, "    --adiosfull METHOD : Enable ADIOS full output with corresponding method.\n"
-                    "    --adiosiso METHOD : Enable ADIOS isosurface output with corresponding method.\n"
-                    "    --adiosopts OPTS : Pass options to ADIOS."
+    fprintf(stderr, 
+       "    --adiosfull METHOD : Enable ADIOS full output with corresponding method.\n"
+       "    --adiosiso METHOD : Enable ADIOS isosurface output with corresponding method.\n"
+       "    --adiosopts OPTS : Pass options to ADIOS.\n"
+       "    --adios_transform TRANSFORM : Pass a transform, e.g., compression, to ADIOS\n"
     );
 #endif
 
@@ -194,6 +198,7 @@ int main(int argc, char **argv)
     float omegaz;
     double noisespacefreq = 10.0;   /* Spatial frequency of noise */
     double noisetimefreq = 0.25;    /* Temporal frequency of noise */
+    int fulloutputnoiseonly = 0;    /* Boolean: output only noise in full output */
     int tstart = 0;
     int nt = 11;  /* Number of time steps */
     typedef enum { sin2gauss, gaussmove, gaussresize } modetype;
@@ -229,6 +234,7 @@ int main(int argc, char **argv)
     struct adiosfullinfo adiosfull_nfo;
     char *adiosisomethod = NULL;
     struct adiosisoinfo adiosiso_nfo;
+    char *adios_transform=NULL;    /* e.g., compression */
     char *adiosopts = NULL;
 #endif
 
@@ -287,6 +293,8 @@ int main(int argc, char **argv)
             noisespacefreq = strtod(argv[++a], NULL);
         } else if(!strcasecmp(argv[a], "--noisetimefreq")) {
             noisetimefreq = strtod(argv[++a], NULL);
+        } else if(!strcasecmp(argv[a], "--fulloutputnoiseonly")) {
+            fulloutputnoiseonly = 1;
         } else if(!strcasecmp(argv[a], "--tsteps")) {
             nt = atoi(argv[++a]);
         } else if(!strcasecmp(argv[a], "--tstart")) {
@@ -321,6 +329,9 @@ int main(int argc, char **argv)
         }
         else if(!strcasecmp(argv[a], "--adiosiso")) {
             adiosisomethod = argv[++a];
+        }
+        else if(!strcasecmp(argv[a], "--adios_transform")) {
+            adios_transform = argv[++a];
         }
         else if(!strcasecmp(argv[a], "--adiosopts")) {
             adiosopts = argv[++a];
@@ -455,14 +466,15 @@ int main(int argc, char **argv)
 
 #ifdef HAS_ADIOS
     if(adiosfullmethod) {
-        adiosfull_init(&adiosfull_nfo, adiosfullmethod, "cartiso.full", comm, rank, nprocs, nt,
-                       ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, deltay, deltaz, adiosopts);
-        adiosfull_addvar(&adiosfull_nfo, "value", data);
+        adiosfull_init(&adiosfull_nfo, adiosfullmethod, adios_transform, "cartiso.full", comm,
+                       rank, nprocs, nt, ni, nj, nk, is, cni, js, cnj, ks, cnk, deltax, 
+                       deltay, deltaz, adiosopts);
+        if(!fulloutputnoiseonly)  adiosfull_addvar(&adiosfull_nfo, "value", data);
         adiosfull_addvar(&adiosfull_nfo, "noise", xdata);
     }
     if(adiosisomethod) {
-        adiosiso_init(&adiosiso_nfo, adiosisomethod, "cartiso.iso", comm, rank, nprocs, nt,
-                       ni, nj, nk, cni, cnj, cnk, adiosopts);
+        adiosiso_init(&adiosiso_nfo, adiosisomethod, adios_transform, "cartiso.iso", comm, 
+                       rank, nprocs, nt, ni, nj, nk, cni, cnj, cnk, adiosopts);
         adiosiso_addxvar(&adiosiso_nfo, "noise");
     }
 #endif
@@ -559,9 +571,11 @@ int main(int argc, char **argv)
             if(rank == 0) {
                 printf("      Writing pvti...\n");   fflush(stdout);
             }
-            writepvti("cartiso", "value", comm, rank, nprocs, tt, ni, nj, nk,
+            if(!fulloutputnoiseonly) {
+                writepvti("cartiso", "value", comm, rank, nprocs, tt, ni, nj, nk,
                       is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
                       deltax, deltay, deltaz, data);
+            }
             writepvti("cartiso", "noise", comm, rank, nprocs, tt, ni, nj, nk,
                       is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
                       deltax, deltay, deltaz, xdata);
@@ -583,9 +597,11 @@ int main(int argc, char **argv)
             printf("      Writing nci...\n"); fflush(stdout);
           }
 
-          writenci("cartiso", "value", comm, rank, nprocs, tt, ni, nj, nk,
+          if(!fulloutputnoiseonly) {
+              writenci("cartiso", "value", comm, rank, nprocs, tt, ni, nj, nk,
                    is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
                    deltax, deltay, deltaz, cni, cnj, cnk, data);
+          }
           writenci("cartiso", "noise", comm, rank, nprocs, tt, ni, nj, nk,
                    is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
                    deltax, deltay, deltaz, cni, cnj, cnk, xdata);
@@ -599,12 +615,14 @@ int main(int argc, char **argv)
             if(rank == 0) {
                 printf("      Writing hdf5i...\n");   fflush(stdout);
             }
-            writehdf5i("cartiso", "value", comm, rank, nprocs, tt, ni, nj, nk,
-                      is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
-		       deltax, deltay, deltaz, cni, cnj, cnk, data, hdf5i_chunk, hdf5_compress);
+            if(!fulloutputnoiseonly) {
+                writehdf5i("cartiso", "value", comm, rank, nprocs, tt, ni, nj, nk,
+                    is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
+		            deltax, deltay, deltaz, cni, cnj, cnk, data, hdf5i_chunk, hdf5_compress);
+            }
             writehdf5i("cartiso", "noise", comm, rank, nprocs, tt, ni, nj, nk,
-                      is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
-		       deltax, deltay, deltaz, cni, cnj, cnk, xdata, hdf5i_chunk, hdf5_compress);
+                   is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
+		           deltax, deltay, deltaz, cni, cnj, cnk, xdata, hdf5i_chunk, hdf5_compress);
         }
 #endif
 

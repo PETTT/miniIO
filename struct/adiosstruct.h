@@ -34,7 +34,7 @@ struct adiosstructinfo {
 };
 
 void adiosstruct_init(struct adiosstructinfo *nfo, char *method, char *transform,
-               char *name, MPI_Comm comm, int rank, int nprocs,
+               char *name, char *adiosopts, MPI_Comm comm, int rank, int nprocs,
                int tsteps, int ni, int nj, int nk, int is, int cni, int js, int cnj,
 	       int ks, int cnk, float deltax, float deltay, float deltaz, float fillvalue);
 

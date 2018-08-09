@@ -8,6 +8,7 @@
 
 struct adiosfullinfo {
     char *name;
+    char *transform;
     MPI_Comm comm;
     int rank;
     int nprocs;
@@ -26,7 +27,7 @@ struct adiosfullinfo {
     int64_t gid;
 };
 
-void adiosfull_init(struct adiosfullinfo *nfo, char *method,
+void adiosfull_init(struct adiosfullinfo *nfo, char *method, char *transform,
                char *name, MPI_Comm comm, int rank, int nprocs,
                int tsteps, int ni, int nj, int nk, int is, int cni, int js, int cnj,
                int ks, int cnk, float deltax, float deltay, float deltaz, char *adiosopts);

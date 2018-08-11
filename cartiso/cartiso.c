@@ -467,9 +467,6 @@ int main(int argc, char **argv)
     isoinit(&iso, xs, ys, zs, deltax, deltay, deltaz, cni, cnj, cnk, 1);
     /* Set up osn */
     open_simplex_noise(12345, &osn);   /* Fixed seed, for now */
-    /* Noise scale & shift */
-    noisescale = (noisemax - noisemin) / 2;
-    noiseshift = noisescale + noisemin;
 
     /* Allocate arrays */
     data = (float *) malloc((size_t)cni*cnj*cnk*sizeof(float));
@@ -558,17 +555,34 @@ int main(int argc, char **argv)
                     float sinusoid = ( sin(omegax*x) + sin(omegay*y) + \
                                        cos(omegaz*z) + sinshift ) * sinscale;
                     data[ii] = exp( -alpha*( (x-x0)*(x-x0)/sigmax2 + \
-					     (y-y0)*(y-y0)/sigmay2 +	\
+                                             (y-y0)*(y-y0)/sigmay2 +	\
                                              (z-z0)*(z-z0)/sigmaz2 ) ) * sinusoid;
                     xdata[ii] = (float)open_simplex_noise4(osn, x * noisespacefreqx,
-                                  y * noisespacefreqy, z * noisespacefreqz, tt*noisetimefreq)
-                                * noisescale + noiseshift;
-                    /* need other frequencies */
+                                  y * noisespacefreqy, z * noisespacefreqz, tt*noisetimefreq);
                     x += deltax;
                 }
                 y += deltay;
             }
             z += deltaz;
+        }
+
+        /* Fully normalize noise noisemin to noisemax */
+        if(1) {       /* for now, pretend that this will be optional */
+            size_t all = (size_t)cni * cnj * cnk;
+            float min = xdata[0], max = xdata[0];
+            float rmin, rmax, rrange;
+            for(ii = 1; ii < all; ii++) {
+                if(xdata[ii] < min)   min = xdata[ii];
+                if(xdata[ii] > max)   max = xdata[ii];
+            }
+            MPI_Allreduce(&min, &rmin, 1, MPI_FLOAT, MPI_MIN, comm);
+            MPI_Allreduce(&max, &rmax, 1, MPI_FLOAT, MPI_MAX, comm);
+            /* Noise scale & shift */
+            rrange = rmax - rmin;
+            noisescale = noisemax/rrange - noisemin/rrange;
+            noiseshift = noisemin*rmin/rrange - noisemax*rmin/rrange + noisemin;
+            for(ii = 0; ii < all; ii++)
+                xdata[ii] = xdata[ii] * noisescale + noiseshift;
         }
 
         timer_tock(&computetime);

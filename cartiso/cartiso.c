@@ -81,7 +81,7 @@ void print_usage(int rank, const char *errstr)
 "      Default: near the value of gaussian of 1*sigma, i.e. e^(-0.5)\n"
 "    --freq FX FY FZ : Frequency of sinusoid function\n"
 "      FX, FY, FZ : Indicates the number of sinusoid periods across the domain\n"
-"    --noisespacefreq FNS : Spatial frequency of noise function\n"
+"    --noisespacefreq FNX FNY FNZ : Spatial frequency of noise function\n"
 "      FNS : space frequency value; Default: 10.0\n"
 "    --noisetimefreq FNT : Temporal frequency of noise function\n"
 "      FNT : time frequency value;  Default: 0.25\n"
@@ -197,7 +197,9 @@ int main(int argc, char **argv)
     float omegax;      /* Angular freq. */
     float omegay;
     float omegaz;
-    double noisespacefreq = 10.0;   /* Spatial frequency of noise */
+    double noisespacefreqx = 10.0;   /* Spatial frequency of noise */
+    double noisespacefreqy = 10.0;   /* Spatial frequency of noise */
+    double noisespacefreqz = 10.0;   /* Spatial frequency of noise */
     double noisetimefreq = 0.25;    /* Temporal frequency of noise */
     float noisemin = -1.f, noisemax = 1.f;   /* Range of noise */
     float noisescale, noiseshift;   /* Range of noise as scale + shift */
@@ -293,7 +295,9 @@ int main(int argc, char **argv)
             fy = strtof(argv[++a], NULL);
             fz = strtof(argv[++a], NULL);
         } else if(!strcasecmp(argv[a], "--noisespacefreq")) {
-            noisespacefreq = strtod(argv[++a], NULL);
+            noisespacefreqx = strtod(argv[++a], NULL);
+            noisespacefreqy = strtod(argv[++a], NULL);
+            noisespacefreqz = strtod(argv[++a], NULL);
         } else if(!strcasecmp(argv[a], "--noisetimefreq")) {
             noisetimefreq = strtod(argv[++a], NULL);
         } else if(!strcasecmp(argv[a], "--noiserange")) {
@@ -556,8 +560,8 @@ int main(int argc, char **argv)
                     data[ii] = exp( -alpha*( (x-x0)*(x-x0)/sigmax2 + \
 					     (y-y0)*(y-y0)/sigmay2 +	\
                                              (z-z0)*(z-z0)/sigmaz2 ) ) * sinusoid;
-                    xdata[ii] = (float)open_simplex_noise4(osn, x * noisespacefreq,
-                                  y * noisespacefreq, z * noisespacefreq, tt*noisetimefreq)
+                    xdata[ii] = (float)open_simplex_noise4(osn, x * noisespacefreqx,
+                                  y * noisespacefreqy, z * noisespacefreqz, tt*noisetimefreq)
                                 * noisescale + noiseshift;
                     /* need other frequencies */
                     x += deltax;

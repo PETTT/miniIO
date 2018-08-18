@@ -248,10 +248,10 @@ void isoinit(struct isoinfo *nfo, float x0, float y0, float z0,
     nfo->ntris = 0;
     /* Allocate list for maximum possible triangles; overkill, but simple */
     /*    max of 5 tris per cell, 3 points per tri, 3 dims per point */
-    nfo->points = (float *) malloc( xdim1*ydim1*zdim1*5*3*3*sizeof(float) );
-    nfo->norms = (float *) malloc( xdim1*ydim1*zdim1*5*3*3*sizeof(float) );
+    nfo->points = (float *) malloc( (size_t)xdim1*ydim1*zdim1*5*3*3*sizeof(float) );
+    nfo->norms = (float *) malloc( (size_t)xdim1*ydim1*zdim1*5*3*3*sizeof(float) );
     if(numxarrays > 0)       /* same as above, but 1 value per point */
-        nfo->xvals = (float *) malloc( xdim1*ydim1*zdim1*5*3*sizeof(float) );
+        nfo->xvals = (float *) malloc( (size_t)xdim1*ydim1*zdim1*5*3*sizeof(float) );
     else
         nfo->xvals = NULL;
     if(numxarrays > 1)

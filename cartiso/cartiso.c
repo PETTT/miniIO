@@ -636,8 +636,6 @@ int main(int argc, char **argv)
         }
 #endif
 
-
-
 #ifdef HAS_HDF5
         if(hdf5iout) {
             if(rank == 0) {

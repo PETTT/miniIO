@@ -33,7 +33,8 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y mpich libmpich-dev libhdf5-mpich-dev
+        sudo apt-get install -y mpich libhdf5-mpich-dev
+        sudo apt-get install -y libsz2 zlib1g
         # Set env vars
         echo "CC=mpicc" >> $GITHUB_ENV
         echo "CPPFLAGS=-I/usr/include/hdf5/mpich" >> $GITHUB_ENV

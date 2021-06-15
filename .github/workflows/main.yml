@@ -36,12 +36,13 @@ jobs:
         sudo apt-get install -qq mpich
         sudo apt-get install -qq libhdf5-mpich-dev
         sudo apt-get install -qq libsz2
-        ls /usr/lib/x86_64-linux-gnu
         # Set env vars
         echo "CC=mpicc" >> $GITHUB_ENV
         echo "CPPFLAGS=-I/usr/include/hdf5/mpich" >> $GITHUB_ENV
         echo "LDFLAGS=-L/usr/lib/x86_64-linux-gnu/hdf5/mpich" >> $GITHUB_ENV
-        echo "LIBS=-lsz -L/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+        #echo "LIBS=-L/usr/lib/x86_64-linux-gnu -lsz" >> $GITHUB_ENV
+        echo "LIBS=/usr/lib/x86_64-linux-gnu/libsz.a" >> $GITHUB_ENV
+        nm -a /usr/lib/x86_64-linux-gnu/libsz.a
         echo "HDF5_DIR=/usr/lib/x86_64-linux-gnu/hdf5/mpich" >> $GITHUB_ENV
 
  # Checks-out the repository under $GITHUB_WORKSPACE so the job can access it.

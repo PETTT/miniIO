@@ -36,6 +36,7 @@ jobs:
         sudo apt-get install -qq mpich
         sudo apt-get install -qq libhdf5-mpich-dev
         sudo apt-get install -qq libsz2
+        ls /usr/lib/x86_64-linux-gnu
         # Set env vars
         echo "CC=mpicc" >> $GITHUB_ENV
         echo "CPPFLAGS=-I/usr/include/hdf5/mpich" >> $GITHUB_ENV

@@ -1,0 +1,57 @@
+name: miniIO
+
+# Controls when the action will run. 
+#Triggers the workflow on push or pull requests.
+on: 
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+# A workflow run is made up of one or more jobs that
+# can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    strategy:
+      matrix:
+        name: ["Ubuntu Latest GCC"]
+        include:
+          - name: "Ubuntu Latest GCC"
+            artifact: "Linux.tar.xz"
+            os: ubuntu-latest
+
+    name: ${{ matrix.name }}
+    # The type of runner that the job will run on.
+    runs-on: ${{ matrix.os }}
+    if: "!contains(github.event.head_commit.message, 'skip-ci')"
+
+    # Steps represent a sequence of tasks that will be executed 
+    # as part of the job.
+    steps:
+    - name: Install Dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get install -qq mpich
+        sudo apt-get install -qq libhdf5-mpich-dev
+        # Set env vars
+        echo "CC=mpicc" >> $GITHUB_ENV
+        echo "CPPFLAGS=-I/usr/include/hdf5/mpich" >> $GITHUB_ENV
+        echo "LDFLAGS=-L/usr/lib/x86_64-linux-gnu/hdf5/mpich" >> $GITHUB_ENV
+        echo "HDF5_DIR=/usr/lib/x86_64-linux-gnu/hdf5/mpich" >> $GITHUB_ENV
+
+ # Checks-out the repository under $GITHUB_WORKSPACE so the job can access it.
+    - name: Get Sources
+      uses: actions/checkout@v2
+
+##################################
+# BUILD and TEST miniIO
+##################################
+
+    - name: test minIO
+      run: |
+        cd cartiso
+        make
+        test.sh hdf5
+        
+      shell: bash

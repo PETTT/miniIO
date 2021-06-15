@@ -43,6 +43,8 @@ jobs:
         #echo "LIBS=-L/usr/lib/x86_64-linux-gnu -lsz" >> $GITHUB_ENV
         echo "LIBS=/usr/lib/x86_64-linux-gnu/libsz.a" >> $GITHUB_ENV
         nm -a /usr/lib/x86_64-linux-gnu/libsz.a
+        cat /usr/lib/x86_64-linux-gnu/hdf5/mpich/libhdf5.settings
+        cat /usr/bin/h5pcc.mpich
         echo "HDF5_DIR=/usr/lib/x86_64-linux-gnu/hdf5/mpich" >> $GITHUB_ENV
 
  # Checks-out the repository under $GITHUB_WORKSPACE so the job can access it.

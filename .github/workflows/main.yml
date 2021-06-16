@@ -32,17 +32,16 @@ jobs:
     - name: Install Dependencies (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: |
-        sudo apt update
-        sudo apt install mpich libhdf5-mpich-dev
-        # sudo apt-get install -y libhdf5-mpich-dev
-        sudo apt install -y libsz2 zlib1g
+        sudo apt-get update
+        sudo apt-get install mpich libhdf5-mpich-dev
+        sudo apt-get install -y libsz2 zlib1g
         # Set env vars
         echo "CC=mpicc" >> $GITHUB_ENV
         echo "CPPFLAGS=-I/usr/include/hdf5/mpich" >> $GITHUB_ENV
         echo "LDFLAGS=-L/usr/lib/x86_64-linux-gnu/hdf5/mpich" >> $GITHUB_ENV
         #echo "LIBS=-L/usr/lib/x86_64-linux-gnu -lsz" >> $GITHUB_ENV
         #echo "LIBS=/usr/lib/x86_64-linux-gnu/libsz.a" >> $GITHUB_ENV
-        echo "LIBS=-lsz -lz -ldl -lm" >> $GITHUB_ENV
+        echo "LIBS=-/usr/lib/x86_64-linux-gnu/libsz.a lz -ldl -lm" >> $GITHUB_ENV
         nm -a /usr/lib/x86_64-linux-gnu/libsz.a
         cat /usr/lib/x86_64-linux-gnu/hdf5/mpich/libhdf5.settings
         cat /usr/bin/h5pcc.mpich

@@ -61,6 +61,6 @@ jobs:
       run: |
         cd cartiso
         make
-        ./test.sh hdf5
+        ./test.sh hdf5 test
         
       shell: bash

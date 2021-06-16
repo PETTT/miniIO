@@ -32,9 +32,9 @@ jobs:
     - name: Install Dependencies (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: |
-        sudo apt-get -y update
-        sudo apt-get -y upgrade
-        sudo apt-get install -y mpich libhdf5-mpich-dev
+        sudo apt update
+        sudo atp install mpich libhdf5-mpich-dev
+        # sudo apt-get install -y libhdf5-mpich-dev
         sudo apt-get install -y libsz2 zlib1g
         # Set env vars
         echo "CC=mpicc" >> $GITHUB_ENV

@@ -37,7 +37,7 @@ jobs:
         sudo apt-get install -f
         # Set env vars
         # find /usr -iname "libsz*"
-        echo "CC=mpicc" >> $GITHUB_ENV
+        echo "CC=/usr/bin/h5pcc.mpich" >> $GITHUB_ENV
         echo "CPPFLAGS=-I/usr/include/hdf5/mpich" >> $GITHUB_ENV
         echo "LDFLAGS=-L/usr/lib/x86_64-linux-gnu/hdf5/mpich" >> $GITHUB_ENV
         echo "LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV

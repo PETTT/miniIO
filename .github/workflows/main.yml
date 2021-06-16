@@ -43,7 +43,7 @@ jobs:
         echo "LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
         # echo "LIBS=-L/usr/lib/x86_64-linux-gnu -lsz" >> $GITHUB_ENV
         # echo "LIBS=/usr/lib/x86_64-linux-gnu/libsz.a" >> $GITHUB_ENV
-        echo "LIBS= -lsz -lz -ldl -lm" >> $GITHUB_ENV
+        # echo "LIBS= -ldl -lm" >> $GITHUB_ENV
         # nm -a /usr/lib/x86_64-linux-gnu/libsz.a
         # cat /usr/lib/x86_64-linux-gnu/hdf5/mpich/libhdf5.settings
         # cat /usr/bin/h5pcc.mpich
@@ -61,6 +61,6 @@ jobs:
       run: |
         cd cartiso
         make
-        test.sh hdf5
+        ./test.sh hdf5
         
       shell: bash

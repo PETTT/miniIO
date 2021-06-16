@@ -17,22 +17,16 @@ else
     echo "usage: test.sh <vtk or adios or hdf5 or nc> <optional 2nd argument: test>"
 fi
 
-nsteps1=20
-nsteps2=100
-nsteps3=120
-
+scale=1
 if [ "$#" == 2 ]; then
     if [ "$2" == test ]; then
-        nsteps1=2
-        nsteps2=2
-        nsteps3=2
+        scale=10
     else
         echo "error: invalid 2nd parameter, $2"
         echo "usage: test.sh <vtk or adios or hdf5 or nc> <optional 2nd argument: test>"
         exit 1
     fi
 fi
-
 
 tsk="2 2 2"    # 8 ranks with 2x2x2 decomposition
 fq="2 2 2"     # 2x2x2 sinusoid frequencies
@@ -42,18 +36,18 @@ sge=0.55       # Ending Gaussian sigma
 
 # Phase 1: 20 time steps of sin2gauss mode
 mpirun -np 8 ./cartiso --tasks $tsk --size $s $s $s --sigma $sg $sg $sg \
-    --centertask --freq $fq --tsteps $nsteps1 --sin2gauss $output
+    --centertask --freq $fq --tsteps $((20/$scale)) --sin2gauss $output
 
 # Phase 2: 80 time steps of gaussmove mode
 mpirun -np 8 ./cartiso --tasks $tsk --size $s $s $s --sigma $sg $sg $sg \
-    --centertask --freq $fq --tsteps 80 --tstart $nsteps1 --gaussmove $output
+    --centertask --freq $fq --tsteps $((80/$scale))  --tstart $((20/$scale)) --gaussmove $output
 
 # Phase 3: 20 time steps of gaussresize mode
 mpirun -np 8 ./cartiso --tasks $tsk --size $s $s $s --sigma $sg $sg $sg \
-    --centertask --freq $fq --tsteps 20 --tstart $nsteps2 --gaussresize \
+    --centertask --freq $fq --tsteps $((20/$scale)) --tstart $((100/$scale)) --gaussresize \
     --backward --sigmaend $sge $sge $sge $output
 
 # Phase 4: 80 time steps of backward gaussmove mode
 mpirun -np 8 ./cartiso --tasks $tsk --size $s $s $s --sigma $sge $sge $sge \
-    --centertask --freq $fq --tsteps 80 --tstart $nsteps3 --gaussmove --backward $output
+    --centertask --freq $fq --tsteps $((80/$scale)) --tstart $((120/$scale)) --gaussmove --backward $output
 

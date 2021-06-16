@@ -36,7 +36,6 @@ jobs:
         sudo apt-get install mpich libhdf5-mpich-dev
         sudo apt-get install -f
         # Set env vars
-        # find /usr -iname "libsz*"
         echo "CC=/usr/bin/h5pcc.mpich" >> $GITHUB_ENV
         echo "CPPFLAGS=-I/usr/include/hdf5/mpich" >> $GITHUB_ENV
         echo "LDFLAGS=-L/usr/lib/x86_64-linux-gnu/hdf5/mpich" >> $GITHUB_ENV
@@ -44,8 +43,6 @@ jobs:
         # echo "LIBS=-L/usr/lib/x86_64-linux-gnu -lsz" >> $GITHUB_ENV
         # echo "LIBS=/usr/lib/x86_64-linux-gnu/libsz.a" >> $GITHUB_ENV
         # echo "LIBS= -ldl -lm" >> $GITHUB_ENV
-        # nm -a /usr/lib/x86_64-linux-gnu/libsz.a
-        # cat /usr/lib/x86_64-linux-gnu/hdf5/mpich/libhdf5.settings
         # cat /usr/bin/h5pcc.mpich
         echo "HDF5_DIR=/usr/lib/x86_64-linux-gnu/hdf5/mpich" >> $GITHUB_ENV
 

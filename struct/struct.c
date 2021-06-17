@@ -84,8 +84,10 @@ void print_usage(int rank, const char *errstr)
 #ifdef HAS_HDF5
 	  "    --hdf5 : Enable HDF5 output (i.e. XDMF)\n"
 	  "    --hdf5_chunk y z : Chunk Size y z \n"
-		  "      valid values are  NJ/JNP/y,NK/z\n"
-	  "    --hdf5_compress : enable compression \n"
+	  "      valid values are  NJ/JNP/y,NK/z\n"
+          "    --hdf5_gzip : enable compression gzip, valid value is level (see H5Pset_deflate) \n"
+          "    --hdf5_szip : enable compression szip, valid values are <options_mask>,<pixels_per_block> (see H5Pset_szip) \n"
+          "       For example, --hdf5_szip H5_SZIP_NN_OPTION_MASK,8 \n"
 #endif
 
 #ifdef HAS_NC
@@ -176,9 +178,13 @@ int main(int argc, char **argv)
 #endif
 
 #ifdef HAS_HDF5
+
+#define STR_MAX  64
+
   int hdf5out = 0;
   hsize_t *hdf5_chunk=NULL;
-  char *hdf5_compress = NULL;
+  char hdf5_compress[STR_MAX];
+  unsigned int compress_par[10];
 #endif
 
 #ifdef HAS_ADIOS
@@ -263,7 +269,38 @@ int main(int argc, char **argv)
       }
     }
     else if(!strcasecmp(argv[a], "--hdf5_compress")) {
-      hdf5_compress = argv[++a];
+      char tmp[STR_MAX];
+      strncpy(tmp, argv[++a], STR_MAX-1);
+      char * pch;
+      pch = strtok (tmp, " ,");
+      strncpy( hdf5_compress, pch, strlen(pch) + 1 );
+      pch = strtok (NULL, " ,");
+      if ( strcmp(hdf5_compress,"szip") == 0 ) {
+        int icnt = 0;
+        while (pch != NULL) {
+          if(icnt == 0) {
+            if ( strcmp(pch,"H5_SZIP_EC_OPTION_MASK") == 0 ) {
+              compress_par[icnt] = H5_SZIP_EC_OPTION_MASK;
+            } else if ( strcmp(pch,"H5_SZIP_NN_OPTION_MASK") == 0 ) {
+              compress_par[icnt] = H5_SZIP_NN_OPTION_MASK;
+            } else {
+              if(rank == 0) fprintf(stderr, "szip option not recognized: %s\n\n",pch);
+              MPI_Abort(MPI_COMM_WORLD, 1);
+            }
+          } else if(icnt == 1) {
+            compress_par[icnt] = (unsigned int)strtoul(pch, NULL, 0);
+            /* pixels_per_block and must be even and not greater than 32 */
+            if(compress_par[icnt] % 2 != 0 || compress_par[icnt] > 32 || compress_par[icnt] < 2 ) {
+              if(rank == 0) fprintf(stderr, "szip pixels_per_block and must be even and not greater than 32: %d\n\n",compress_par[icnt]);
+              MPI_Abort(MPI_COMM_WORLD, 1);
+            }
+          }
+          pch = strtok (NULL, " ,");
+          icnt++;
+        }
+      } else if ( strcmp(hdf5_compress,"gzip") == 0 || strcmp(hdf5_compress,"shuffle+gzip") == 0 ) {
+        compress_par[0] = (unsigned int)strtoul(pch, NULL, 0);
+      }
     }
 #else
       if(rank == 0)   fprintf(stderr, "HDF5 option not available: %s\n\n", argv[a]);
@@ -688,7 +725,7 @@ int main(int argc, char **argv)
 		is, js, ks,
 		ni, nj, nk, cni, cnj, cnk,
 		deltax, deltay, deltaz,
-		data, hdf5_chunk, hdf5_compress);
+		data, hdf5_chunk, hdf5_compress, compress_par);
     }
 #endif
 

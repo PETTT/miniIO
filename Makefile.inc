@@ -58,8 +58,8 @@ endif
 
 ### if HDF5_DIR is set then enable HDF5 ###
 ifdef HDF5_DIR
-#  LIBS += -L$(HDF5_DIR)/lib/ -lhdf5 -lz -ldl  
-  LIBS += $(HDF5_DIR)/lib/libhdf5.a -lz -ldl
+#  LIBS += -L$(HDF5_DIR)/lib/ -lhdf5 -lz -ldl
+  LIBS += $(HDF5_DIR)/lib64/libhdf5.a -lsz -lz -ldl
   INCLUDE += -I$(HDF5_DIR)/include
   CFLAGS += -DHAS_HDF5
 endif

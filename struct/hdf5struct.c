@@ -26,7 +26,7 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 	       int is, int js, int ks,
                int ni, int nj, int nk, int cni, int cnj, int cnk,
                float deltax, float deltay, float deltaz,
-               float *data, hsize_t *h5_chunk, char *hdf5_compress)
+               float *data, hsize_t *h5_chunk, char *hdf5_compress, unsigned int *compress_par)
 {
     char fname[fnstrmax+1];
     char fname_xdmf[fnstrmax+1];
@@ -72,6 +72,9 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
       filespace = H5Screate_simple(3, dimsf, NULL);
 
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
+
+      H5Pset_alloc_time(chunk_pid, H5D_ALLOC_TIME_EARLY);
+
       if(h5_chunk) {
 	H5Pset_layout(chunk_pid, H5D_CHUNKED);
 	if( H5Pset_fill_time(chunk_pid, H5D_FILL_TIME_NEVER) < 0 ) {
@@ -84,19 +87,31 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 
 	H5Pset_chunk(chunk_pid, 3, chunk);
 
-	if(hdf5_compress) {
+	if(!strcasecmp(hdf5_compress, "\0")) {
 
-          if(!strcasecmp(hdf5_compress, "zlib")) {
-	    /* Set ZLIB / DEFLATE Compression using compression level 6. */
-	    H5Pset_deflate (chunk_pid, 6);
-          } else if(!strcasecmp(hdf5_compress, "shuffle+zlib")) {
+          if(!strcasecmp(hdf5_compress, "gzip")) {
+	    /* Set ZLIB / DEFLATE Compression. */
+            if( H5Pset_deflate (chunk_pid, compress_par[0]) < 0 ) {
+              printf("writehdf5 error: Could not set compression\n");
+              MPI_Abort(comm, 1);
+            }
+          } else if(!strcasecmp(hdf5_compress, "shuffle+gzip")) {
             /* Set Shuffle before Deflate */
-            H5Pset_shuffle (chunk_pid);
-	    /* Set ZLIB / DEFLATE Compression using compression level 6. */
-	    H5Pset_deflate (chunk_pid, 6);
+            if( H5Pset_shuffle (chunk_pid) < 0 ) {
+              printf("writehdf5 error: H5Pset_shuffle failed\n");
+              MPI_Abort(comm, 1);
+            }
+	    /* Set ZLIB / DEFLATE Compression. */
+            if( H5Pset_deflate (chunk_pid, compress_par[0]) < 0 ) {
+              printf("writehdf5 error: Could not set compression\n");
+              MPI_Abort(comm, 1);
+            }
           } else if(!strcasecmp(hdf5_compress, "szip"))  {
-	    /* Set SZIP Compression, default options, 16 pixels per block */
-	    H5Pset_szip (plist_id, H5_SZIP_NN_OPTION_MASK, 16);
+	    /* Set SZIP Compression. */
+            if( H5Pset_szip (chunk_pid, compress_par[0], compress_par[1]) < 0 ) {
+              printf("writehdf5 error: Could not set compression\n");
+              MPI_Abort(comm, 1);
+            }
 	  } else 
 	    fprintf(stderr, "WARNING: Compression option not recognized: %s\n", hdf5_compress);
 	}
@@ -142,14 +157,14 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 
     /* Set up file access property list with parallel I/O access */
     if( (plist_id = H5Pcreate(H5P_FILE_ACCESS)) < 0) {
-      printf("writehdf5p error: Could not create property list \n");
+      printf("writehdf5 error: Could not create property list \n");
       MPI_Abort(comm, 1);
     }
 
     H5Pset_libver_bounds(plist_id, H5F_LIBVER_LATEST, H5F_LIBVER_LATEST);
 
     if(H5Pset_fapl_mpio(plist_id, MPI_COMM_WORLD, info) < 0) {
-      printf("writehdf5p error: Could not create property list \n");
+      printf("writehdf5 error: Could not create property list \n");
       MPI_Abort(comm, 1);
     }
 
@@ -157,12 +172,12 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
     H5Pset_coll_metadata_write(plist_id, 1);
 
     if( (file_id = H5Fopen(fname, H5F_ACC_RDWR, plist_id)) < 0) {
-      fprintf(stderr, "writehdf5p error: could not open %s \n", fname);
+      fprintf(stderr, "writehdf5 error: could not open %s \n", fname);
       MPI_Abort(comm, 1);
     }
 
     if(H5Pclose(plist_id) < 0) {
-      printf("writehdf5p error: Could not close property list \n");
+      printf("writehdf5 error: Could not close property list \n");
       MPI_Abort(comm, 1);
     }
     if(h5_chunk) {

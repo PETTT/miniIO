@@ -5,7 +5,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
+#include <string.h>
 #include <stdint.h>
 #include <math.h>
 #include <mpi.h>
@@ -122,7 +122,11 @@ void print_usage(int rank, const char *errstr)
                     "      valid values are CI <= NI, CJ <= NJ, CK <= NK\n"
                     "    --hdf5p_chunk CI : Integer percentage of triangles (CI); isosurface output.\n"
                     "      valid values are 2 <= CI <= 100 \n"
-                    "    --hdf5_compress : enable compression \n"
+                    "    --hdf5_compress : enable compression. Valid value is a comma seperate (no spaces) list:  \n"
+                    "        <compression type: gzip or szip>,<compression parameter(s) corresponding to HDF5 compression API>  \n"
+                    "        gzip,<value is level (see H5Pset_deflate)> \n"
+                    "        szip,<value is <options_mask>,<pixels_per_block (see H5Pset_szip)> \n"
+                    "             For example, --hdf5_compress szip,H5_SZIP_NN_OPTION_MASK,8 \n" 
     );
 #endif
 
@@ -149,7 +153,9 @@ void print_stats(MPI_Comm comm, int rank, int nprocs, uint64_t ntris)
         for(i = 0; i < nprocs; i++) {
             if(rntris[i] > Lmax)   Lmax = rntris[i];
             Lbar += rntris[i];
+            
         }
+        if(Lbar < 1.e-6) return;
         Ltot = Lbar;
         Lbar /= nprocs;
         Limb = (Lmax / Lbar - 1);
@@ -169,7 +175,7 @@ int main(int argc, char **argv)
     int tt;         /* Actual time step from tstart */
     int a;
     float x, y, z;
-    float deltax, deltay, deltaz;
+    float deltax = 1., deltay = 1., deltaz = 1.;
     float *data, *xdata;
     int inp = 0;      /* Number of tasks in i */
     int jnp = 0;      /* Number of tasks in j */
@@ -249,11 +255,16 @@ int main(int argc, char **argv)
 #endif
 
 #ifdef HAS_HDF5
+
+#define STR_MAX  64
+
     int hdf5iout = 0;
     int hdf5pout = 0;
     hsize_t *hdf5i_chunk=NULL;
     hsize_t *hdf5p_chunk=NULL;
-    int hdf5_compress = 0;
+    char hdf5_compress[STR_MAX];
+    unsigned int compress_par[10];
+
 #endif
 
     /*## End of Output Module Variables ##*/
@@ -374,10 +385,40 @@ int main(int argc, char **argv)
             hdf5p_chunk[0] = (hsize_t)strtoul(argv[++a], NULL, 0);
         }
         else if(!strcasecmp(argv[a], "--hdf5_compress")) {
-            hdf5_compress=1;
+          char tmp[STR_MAX];
+          strncpy(tmp, argv[++a], STR_MAX-1);
+          char * pch;
+          pch = strtok (tmp, " ,");
+          strncpy( hdf5_compress, pch, strlen(pch) + 1 );
+          pch = strtok (NULL, " ,");
+          if ( strcmp(hdf5_compress,"szip") == 0 ) {
+            int icnt = 0;
+            while (pch != NULL) {
+              if(icnt == 0) {
+                if ( strcmp(pch,"H5_SZIP_EC_OPTION_MASK") == 0 ) {
+                  compress_par[icnt] = H5_SZIP_EC_OPTION_MASK;
+                } else if ( strcmp(pch,"H5_SZIP_NN_OPTION_MASK") == 0 ) {
+                  compress_par[icnt] = H5_SZIP_NN_OPTION_MASK;
+                } else {
+                  if(rank == 0) fprintf(stderr, "szip option not recognized: %s\n\n",pch);
+                  MPI_Abort(MPI_COMM_WORLD, 1);
+                }
+              } else if(icnt == 1) {
+                compress_par[icnt] = (unsigned int)strtoul(pch, NULL, 0);
+                /* pixels_per_block and must be even and not greater than 32 */
+                if(compress_par[icnt] % 2 != 0 || compress_par[icnt] > 32 || compress_par[icnt] < 2 ) {
+                  if(rank == 0) fprintf(stderr, "szip pixels_per_block and must be even and not greater than 32: %d\n\n",compress_par[icnt]);
+                  MPI_Abort(MPI_COMM_WORLD, 1);
+                }
+              }
+              pch = strtok (NULL, " ,");
+              icnt++;
+            }
+          } else if ( strcmp(hdf5_compress,"gzip") == 0 ) {
+            compress_par[0] = (unsigned int)strtoul(pch, NULL, 0);
+          }
         }
 #endif
-
         /*## End of Output Module Command Line Arguments ##*/
 
         else {
@@ -430,9 +471,12 @@ int main(int argc, char **argv)
     omegax = fx * 2 * M_PI;
     omegay = fy * 2 * M_PI;
     omegaz = fz * 2 * M_PI;
-    deltax = 1.f/(ni-1);
-    deltay = 1.f/(nj-1);
-    deltaz = 1.f/(nk-1);
+    if(ni != 1 )
+      deltax = 1.f/(ni-1);
+    if(nj != 1 )
+      deltay = 1.f/(nj-1);
+    if(nk != 1 )
+      deltaz = 1.f/(nk-1);
     cni = ni / inp;
     cnj = nj / jnp;
     cnk = nk / knp;
@@ -442,6 +486,7 @@ int main(int argc, char **argv)
     xs = is * deltax;
     ys = js * deltay;
     zs = ks * deltaz;
+    
     /* add a ghost point to the far side of each axis for pvti & iso continuity */
     /* note: this seems to confuse readability of formats that don't expect continuity,
      *       like ADIOS and ?, but it does not hurt for mere benchmarking of those */
@@ -465,6 +510,7 @@ int main(int argc, char **argv)
     }
     /* Set up isosurfacing structure */
     isoinit(&iso, xs, ys, zs, deltax, deltay, deltaz, cni, cnj, cnk, 1);
+    
     /* Set up osn */
     open_simplex_noise(12345, &osn);   /* Fixed seed, for now */
 
@@ -557,8 +603,16 @@ int main(int argc, char **argv)
                     data[ii] = exp( -alpha*( (x-x0)*(x-x0)/sigmax2 + \
                                              (y-y0)*(y-y0)/sigmay2 +	\
                                              (z-z0)*(z-z0)/sigmaz2 ) ) * sinusoid;
+                    if (isnan(data[ii])) {
+                      printf("error: data is NaN\n");
+                      MPI_Abort(comm, 1);
+                    }
                     xdata[ii] = (float)open_simplex_noise4(osn, x * noisespacefreqx,
                                   y * noisespacefreqy, z * noisespacefreqz, tt*noisetimefreq);
+                    if (isnan(xdata[ii])) {
+                      printf("error: xdata is NaN\n");
+                      MPI_Abort(comm, 1);
+                    }
                     x += deltax;
                 }
                 y += deltay;
@@ -644,11 +698,11 @@ int main(int argc, char **argv)
             if(!fulloutputnoiseonly) {
                 writehdf5i("cartiso", "value", comm, rank, nprocs, tt, ni, nj, nk,
                     is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
-		            deltax, deltay, deltaz, cni, cnj, cnk, data, hdf5i_chunk, hdf5_compress);
+		            deltax, deltay, deltaz, cni, cnj, cnk, data, hdf5i_chunk, hdf5_compress, compress_par);
             }
             writehdf5i("cartiso", "noise", comm, rank, nprocs, tt, ni, nj, nk,
                    is, is+cni-1, js, js+cnj-1, ks, ks+cnk-1,
-		           deltax, deltay, deltaz, cni, cnj, cnk, xdata, hdf5i_chunk, hdf5_compress);
+		           deltax, deltay, deltaz, cni, cnj, cnk, xdata, hdf5i_chunk, hdf5_compress, compress_par);
         }
 #endif
 
@@ -709,7 +763,7 @@ int main(int argc, char **argv)
                 printf("      Writing hdf5p...\n");   fflush(stdout);
             }
             writehdf5p("cartiso", "iso", comm, rank, nprocs, tt, iso.ntris,
-		       iso.points, iso.norms, iso.xvals, "noise", hdf5p_chunk, hdf5_compress);
+		       iso.points, iso.norms, iso.xvals, "noise", hdf5p_chunk, hdf5_compress, compress_par);
         }
 #endif
 

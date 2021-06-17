@@ -127,6 +127,7 @@ void print_usage(int rank, const char *errstr)
                     "        gzip,<value is level (see H5Pset_deflate)> \n"
                     "        szip,<value is <options_mask>,<pixels_per_block (see H5Pset_szip)> \n"
                     "             For example, --hdf5_compress szip,H5_SZIP_NN_OPTION_MASK,8 \n" 
+                    "        NOTE: compression requires chunked datasets \n"
     );
 #endif
 
@@ -428,6 +429,8 @@ int main(int argc, char **argv)
         }
     }
 
+    MPI_Barrier(MPI_COMM_WORLD);
+
     /* Check arguments & proc counts */
     if(inp < 1 || jnp < 1 || knp < 1) {
         print_usage(rank, "Error: tasks not specified or incorrect");
@@ -450,6 +453,17 @@ int main(int argc, char **argv)
                 "by axis tasks.\n   This is required for proper load balancing.");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
+#ifdef HAS_HDF5
+    if( !strcasecmp(hdf5_compress, "\0") && hdf5iout == 1 && hdf5i_chunk == NULL ) {
+        print_usage(rank, "Error: HDF5 compression requires chunked datasets (--hdf5i_chunk)");
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+    if( !strcasecmp(hdf5_compress, "\0") && hdf5pout == 1 && hdf5p_chunk == NULL ) {
+        print_usage(rank, "Error: HDF5 compression requires chunked datasets (--hdf5p_chunk)");
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+#endif
+      
 
     /* Set up Cartesian communicator */
     cprocs[0] = inp;  cprocs[1] = jnp;  cprocs[2] = knp;

@@ -71,7 +71,9 @@ void print_usage(int rank, const char *errstr)
                     "        <compression type: gzip or szip>,<compression parameter(s) corresponding to HDF5 compression API>  \n"
                     "        gzip,<value is level (see H5Pset_deflate)> \n"
                     "        szip,<value is <options_mask>,<pixels_per_block (see H5Pset_szip)> \n"
-                    "             For example, --hdf5_compress szip,H5_SZIP_NN_OPTION_MASK,8 \n"
+                    "             For example, --hdf5_compress szip,H5_SZIP_NN_OPTION_MASK,8 \n" 
+                    "        NOTE: compression requires chunked datasets \n"
+            
 	    );
 #endif
 #ifdef HAS_NC

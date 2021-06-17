@@ -122,7 +122,7 @@ void print_usage(int rank, const char *errstr)
                     "      valid values are CI <= NI, CJ <= NJ, CK <= NK\n"
                     "    --hdf5p_chunk CI : Integer percentage of triangles (CI); isosurface output.\n"
                     "      valid values are 2 <= CI <= 100 \n"
-                    "    --hdf5_compress : enable compression \n"
+                    "    --hdf5_compress : enable compression (requires chunked datasets) \n"
     );
 #endif
 
@@ -387,6 +387,8 @@ int main(int argc, char **argv)
         }
     }
 
+    MPI_Barrier(MPI_COMM_WORLD);
+
     /* Check arguments & proc counts */
     if(inp < 1 || jnp < 1 || knp < 1) {
         print_usage(rank, "Error: tasks not specified or incorrect");
@@ -409,6 +411,17 @@ int main(int argc, char **argv)
                 "by axis tasks.\n   This is required for proper load balancing.");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
+#ifdef HAS_HDF5
+    if( hdf5_compress == 1 && hdf5iout == 1 && hdf5i_chunk == NULL ) {
+        print_usage(rank, "Error: HDF5 compression requires chunked datasets (--hdf5i_chunk)");
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+    if( hdf5_compress == 1 && hdf5pout == 1 && hdf5p_chunk == NULL ) {
+        print_usage(rank, "Error: HDF5 compression requires chunked datasets (--hdf5p_chunk)");
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+#endif
+      
 
     /* Set up Cartesian communicator */
     cprocs[0] = inp;  cprocs[1] = jnp;  cprocs[2] = knp;

@@ -85,7 +85,7 @@ void print_usage(int rank, const char *errstr)
 	  "    --hdf5 : Enable HDF5 output (i.e. XDMF)\n"
 	  "    --hdf5_chunk y z : Chunk Size y z \n"
 	  "      valid values are  NJ/JNP/y,NK/z\n"
-          "    --hdf5_compress : enable compression. Valid value is a comma seperate (no spaces) list:  \n"
+          "    --hdf5_compress : enable compression. Valid value is a comma seperated (no spaces) list:  \n"
           "        <compression type: gzip or szip>,<compression parameter(s) corresponding to HDF5 compression API>  \n"
           "        gzip,<value is level (see H5Pset_deflate)> \n"
           "        szip,<value is <options_mask>,<pixels_per_block (see H5Pset_szip)> \n"

@@ -58,18 +58,19 @@ endif
 
 ### if HDF5_DIR is set then enable HDF5 ###
 ifdef HDF5_DIR
-  ## Verify HDF5 was built with parallel support ##
-  
-  PAR = $(shell if [ -f $$HDF5_DIR/bin/h5pcc ]; then echo "yes"; else echo "no"; fi)
 
-  ifeq ($(PAR),no)
-   $(error HDF5 was not built with parallel enabled)
+  H5PCC = $(HDF5_DIR)/bin/h5pcc
+
+  TESTING = $(shell if [ -f /usr/bin/h5pcc.mpich ]; then echo "yes"; else echo "no"; fi)
+  
+  ifeq ($(TESTING),yes)
+    H5PCC = /usr/bin/h5pcc.mpich
   endif
 
   ## PROCESS h5pcc to get linking options ##
 
-  LINK_LIBS = $(shell $$HDF5_DIR/bin/h5pcc -showconfig | grep "AM_LDFLAGS:" | sed -n -e 's/^.*AM_LDFLAGS: //p')
-  LINK_LIBS += $(shell $$HDF5_DIR/bin/h5pcc -showconfig | grep "Extra libraries:" | sed -n -e 's/^.*Extra libraries: //p')
+  LINK_LIBS = $(shell $(H5PCC) -showconfig | grep "AM_LDFLAGS:" | sed -n -e 's/^.*AM_LDFLAGS: //p')
+  LINK_LIBS += $(shell $(H5PCC) -showconfig | grep "Extra libraries:" | sed -n -e 's/^.*Extra libraries: //p')
 
   LIBDIR = $(shell if [ -d $$HDF5_DIR/lib ]; then echo "$$HDF5_DIR/lib"; else echo "$$HDF5_DIR/lib64"; fi)
 

@@ -122,7 +122,7 @@ void print_usage(int rank, const char *errstr)
                     "      valid values are CI <= NI, CJ <= NJ, CK <= NK\n"
                     "    --hdf5p_chunk CI : Integer percentage of triangles (CI); isosurface output.\n"
                     "      valid values are 2 <= CI <= 100 \n"
-                    "    --hdf5_compress : enable compression. Valid value is a comma seperate (no spaces) list:  \n"
+                    "    --hdf5_compress : enable compression. Valid value is a comma seperated (no spaces) list:  \n"
                     "        <compression type: gzip or szip>,<compression parameter(s) corresponding to HDF5 compression API>  \n"
                     "        gzip,<value is level (see H5Pset_deflate)> \n"
                     "        szip,<value is <options_mask>,<pixels_per_block (see H5Pset_szip)> \n"

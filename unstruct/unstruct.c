@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <strings.h>
+#include <string.h>
 #include <assert.h>
 #include <stdint.h>
 #include <mpi.h>
@@ -67,7 +68,7 @@ void print_usage(int rank, const char *errstr)
                     "   --hdf5_chunk x y z\n"
                     "      values of chunk size; x, y and z are pointspertask/x, nelems2/y nelms3/z, must be divisible\n"
                     "      setting x, y and z values to zero disables chunking, respectively\n"
-                    "    --hdf5_compress : enable compression. Valid value is a comma seperate (no spaces) list:  \n"
+                    "    --hdf5_compress : enable compression. Valid value is a comma seperated (no spaces) list:  \n"
                     "        <compression type: gzip or szip>,<compression parameter(s) corresponding to HDF5 compression API>  \n"
                     "        gzip,<value is level (see H5Pset_deflate)> \n"
                     "        szip,<value is <options_mask>,<pixels_per_block (see H5Pset_szip)> \n"
@@ -433,7 +434,7 @@ int main(int argc, char **argv)
 	  printf("Enable HDF5 chunking: %lld %lld %lld \n", hdf5_chunk[0], hdf5_chunk[1], hdf5_chunk[2]);
 	
 	printf("Enable HDF5 compression: ");
-	if(!strcasecmp(hdf5_compress, "\0"))
+	if(strcasecmp(hdf5_compress, "\0") != 0)
 	  printf("yes\n");
 	else
 	  printf("no\n");

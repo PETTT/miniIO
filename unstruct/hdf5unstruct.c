@@ -7,10 +7,17 @@
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
+#include <strings.h>
 
 #include <pdirs.h>
 #include "hdf5unstruct.h"
 #define TIMEIO
+
+#ifdef TIMEIO
+extern void timer_tock(double *timer);
+extern void timer_tick(double *timer, MPI_Comm comm, int barrier);
+extern void timer_collectprintstats(double timer, MPI_Comm comm, int destrank, char *prefix);
+#endif
 
 uint64_t nelems_in[2];
 uint64_t nelems_out[2];
@@ -143,7 +150,7 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
 	    }
 	    H5Pset_chunk(chunk_pid, 1, &chunk); 
 	
-            if(strcmp(hdf5_compress,"gzip") == 0) {
+            if(strcasecmp(hdf5_compress,"gzip") == 0) {
               
               /* Set ZLIB / DEFLATE Compression. */
 
@@ -151,7 +158,7 @@ void writehdf5(char *name, MPI_Comm comm, int tstep, uint64_t npoints, uint64_t 
                 printf("writehdf5 error: Could not set compression\n");
                 MPI_Abort(comm, 1);
               }
-            } else if(strcmp(hdf5_compress,"szip") == 0) {
+            } else if(strcasecmp(hdf5_compress,"szip") == 0) {
               
               /* SZIP Compression. */
 

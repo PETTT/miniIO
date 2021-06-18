@@ -359,9 +359,9 @@ int main(int argc, char **argv)
     nptstask = (uint64_t)nu * nv * nlyr;   /* nptstask won't be exactly as requested */
     npoints = nptstask * nprocs;
     if(rank == 0)
-        printf("Actual points: %llu , points per task: %llu\n"
+        printf("Actual points: %"PRIu64" , points per task: "PRIu64"\n"
                 "uprocs: %d , vprocs: %d\n"
-                "nu: %"PRIu64" , nv: %"PRIu64" , nlyr: %d\n",
+                "nu: %d , nv: %d , nlyr: %d\n",
                 npoints, nptstask, uprocs, vprocs, nu, nv, nlyr);
 
     /* Divide spherical topology tiles along u,v */

@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <strings.h>
+#include <string.h>
 #include <assert.h>
 #include <stdint.h>
 #include <mpi.h>
@@ -67,7 +68,13 @@ void print_usage(int rank, const char *errstr)
                     "   --hdf5_chunk x y z\n"
                     "      values of chunk size; x, y and z are pointspertask/x, nelems2/y nelms3/z, must be divisible\n"
                     "      setting x, y and z values to zero disables chunking, respectively\n"
-	            "   --hdf5_compress : enable compression \n"
+                    "    --hdf5_compress : enable compression. Valid value is a comma seperated (no spaces) list:  \n"
+                    "        <compression type: gzip or szip>,<compression parameter(s) corresponding to HDF5 compression API>  \n"
+                    "        gzip,<value is level (see H5Pset_deflate)> \n"
+                    "        szip,<value is <options_mask>,<pixels_per_block (see H5Pset_szip)> \n"
+                    "             For example, --hdf5_compress szip,H5_SZIP_NN_OPTION_MASK,8 \n" 
+                    "        NOTE: compression requires chunked datasets \n"
+            
 	    );
 #endif
 #ifdef HAS_NC
@@ -205,9 +212,13 @@ int main(int argc, char **argv)
 #endif
 
 #ifdef HAS_HDF5
+
+#define STR_MAX 64
+
     int hdf5out = 0;
     hsize_t *hdf5_chunk=NULL;
-    int hdf5_compress = 0;
+    char hdf5_compress[STR_MAX];
+    unsigned int compress_par[10];
 #endif
 
     /*## End of Output Module Variables ##*/
@@ -264,21 +275,50 @@ int main(int argc, char **argv)
 	  hdf5_chunk[2] = (hsize_t)strtoul(argv[++a], NULL, 0);
         }
 	else if(!strcasecmp(argv[a], "--hdf5_compress")) {
-	  hdf5_compress=1;
+          char tmp[STR_MAX];
+          strncpy(tmp, argv[++a], STR_MAX-1);
+          char * pch;
+          pch = strtok (tmp, " ,");
+          strncpy( hdf5_compress, pch, strlen(pch) + 1 );
+          pch = strtok (NULL, " ,");
+          if ( strcmp(hdf5_compress,"szip") == 0 ) {
+            int icnt = 0;
+            while (pch != NULL) {
+              if(icnt == 0) {
+                if ( strcmp(pch,"H5_SZIP_EC_OPTION_MASK") == 0 ) {
+                  compress_par[icnt] = H5_SZIP_EC_OPTION_MASK;
+                } else if ( strcmp(pch,"H5_SZIP_NN_OPTION_MASK") == 0 ) {
+                  compress_par[icnt] = H5_SZIP_NN_OPTION_MASK;
+                } else {
+                  if(rank == 0) fprintf(stderr, "szip option not recognized: %s\n\n",pch);
+                  MPI_Abort(MPI_COMM_WORLD, 1);
+                }
+              } else if(icnt == 1) {
+                compress_par[icnt] = (unsigned int)strtoul(pch, NULL, 0);
+                /* pixels_per_block and must be even and not greater than 32 */
+                if(compress_par[icnt] % 2 != 0 || compress_par[icnt] > 32 || compress_par[icnt] < 2 ) {
+                  if(rank == 0) fprintf(stderr, "szip pixels_per_block and must be even and not greater than 32: %d\n\n",compress_par[icnt]);
+                  MPI_Abort(MPI_COMM_WORLD, 1);
+                }
+              }
+              pch = strtok (NULL, " ,");
+              icnt++;
+            }
+          } else if ( strcmp(hdf5_compress,"gzip") == 0 ) {
+            compress_par[0] = (unsigned int)strtoul(pch, NULL, 0);
+          }
 	}
 #endif
 
 #ifdef HAS_NC
-    else if(!strcasecmp(argv[a],"--nc")) {
-      ncout = 1;
-    }
-    else if(!strcasecmp(argv[a],"--nclog")) {
-      ncloglevel = (int)strtoimax(argv[++a], NULL, 0);
-    }
+        else if(!strcasecmp(argv[a],"--nc")) {
+          ncout = 1;
+        }
+        else if(!strcasecmp(argv[a],"--nclog")) {
+          ncloglevel = (int)strtoimax(argv[++a], NULL, 0);
+        }
 
 #endif
-
-
 
         /*## End of Output Module Command Line Arguments ##*/
 
@@ -394,7 +434,7 @@ int main(int argc, char **argv)
 	  printf("Enable HDF5 chunking: %lld %lld %lld \n", hdf5_chunk[0], hdf5_chunk[1], hdf5_chunk[2]);
 	
 	printf("Enable HDF5 compression: ");
-	if(hdf5_compress)
+	if(strcasecmp(hdf5_compress, "\0") != 0)
 	  printf("yes\n");
 	else
 	  printf("no\n");
@@ -479,7 +519,7 @@ int main(int argc, char **argv)
                 printf("   Writing hdf5...\n");   fflush(stdout);
             }
             writehdf5("unstruct", MPI_COMM_WORLD, t, npoints, nptstask, xpts, ypts, zpts,
-                      nelems3, conns3, nelems2, conns2, "noise", data, hdf5_chunk, hdf5_compress);
+                      nelems3, conns3, nelems2, conns2, "noise", data, hdf5_chunk, hdf5_compress, compress_par);
 
 
         }

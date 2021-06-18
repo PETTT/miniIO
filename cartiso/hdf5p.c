@@ -21,7 +21,7 @@ write_xdmf_xml(char *fname, char *fname_xdmf, uint64_t npoints, char *xname);
 
 void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs, 
                int tstep, uint64_t ntris, float *points, float *norms, 
-		float *xvals, char *xname, hsize_t *h5_chunk, int hdf5_compress)
+		float *xvals, char *xname, hsize_t *h5_chunk, char *hdf5_compress, unsigned int *compress_par)
 {
     char fname[fnstrmax+1];
     char fname_xdmf[fnstrmax+1];
@@ -75,6 +75,8 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
       
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
 
+      H5Pset_alloc_time(chunk_pid, H5D_ALLOC_TIME_EARLY);
+      
       if(h5_chunk && tot_tris != 0) {
 
 	H5Pset_layout(chunk_pid, H5D_CHUNKED);
@@ -86,16 +88,21 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 	hsize_t chunk = dims[0]*(h5_chunk[0]/100.);
 	H5Pset_chunk(chunk_pid, 1, &chunk);
 
-	if(hdf5_compress == 1) {
+	if(strcmp(hdf5_compress,"gzip") == 0) {
 
-	  /* Set ZLIB / DEFLATE Compression using compression level 6. */
-	  H5Pset_deflate (chunk_pid, 6);
+	  /* Set ZLIB / DEFLATE Compression. */
+	  if( H5Pset_deflate (chunk_pid, compress_par[0]) < 0 ) {
+	    printf("writehdf5p error: Could not set compression\n");
+	    MPI_Abort(comm, 1);
+          }
+
+        } else if(strcmp(hdf5_compress,"szip") == 0) {
 	  
-	  /* Uncomment these lines to set SZIP Compression
-	     szip_options_mask = H5_SZIP_NN_OPTION_MASK;
-	     szip_pixels_per_block = 16;
-	     status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
-	  */
+	  /* SZIP Compression. */
+          if( H5Pset_szip (plist_id, compress_par[0], compress_par[1]) < 0 ) {
+	    printf("writehdf5p error: Could not set compression\n");
+	    MPI_Abort(comm, 1);
+	  }
 	}
       }
       /* Create the dataset with default properties */
@@ -117,6 +124,8 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
       filespace = H5Screate_simple(1, dims, NULL);
 
       chunk_pid = H5Pcreate(H5P_DATASET_CREATE);
+      
+      H5Pset_alloc_time(chunk_pid, H5D_ALLOC_TIME_EARLY);
 
       if(h5_chunk && tot_tris != 0) {
 
@@ -129,16 +138,24 @@ void writehdf5p(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 	hsize_t chunk = dims[0]*(h5_chunk[0]/100.);
 	H5Pset_chunk(chunk_pid, 1, &chunk);
 
-	if(hdf5_compress == 1) {
+	if(strcmp(hdf5_compress,"gzip") == 0) {
 
-	  /* Set ZLIB / DEFLATE Compression using compression level 6. */
-	  H5Pset_deflate (chunk_pid, 6);
-	  
-	  /* Uncomment these lines to set SZIP Compression
-	     szip_options_mask = H5_SZIP_NN_OPTION_MASK;
-	     szip_pixels_per_block = 16;
-	     status = H5Pset_szip (plist_id, szip_options_mask, szip_pixels_per_block);
-	  */
+	  /* Set ZLIB / DEFLATE Compression. */
+
+	  if( H5Pset_deflate (chunk_pid, compress_par[0]) < 0 ) {
+	    printf("writehdf5p error: Could not set compression\n");
+	    MPI_Abort(comm, 1);
+          }
+
+        } else if(strcmp(hdf5_compress,"szip") == 0) {
+
+	  /* SZIP Compression. */
+
+          if( H5Pset_szip (plist_id, compress_par[0], compress_par[1]) < 0 ) {
+	    printf("writehdf5p error: Could not set compression\n");
+	    MPI_Abort(comm, 1);
+          }
+
 	}
       }
 

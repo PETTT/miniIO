@@ -58,8 +58,23 @@ endif
 
 ### if HDF5_DIR is set then enable HDF5 ###
 ifdef HDF5_DIR
-#  LIBS += -L$(HDF5_DIR)/lib/ -lhdf5 -lz -ldl  
-  LIBS += $(HDF5_DIR)/lib/libhdf5.a -lz -ldl
+
+  H5PCC = $(HDF5_DIR)/bin/h5pcc
+
+  TESTING = $(shell if [ -f /usr/bin/h5pcc.mpich ]; then echo "yes"; else echo "no"; fi)
+  
+  ifeq ($(TESTING),yes)
+    H5PCC = /usr/bin/h5pcc.mpich
+  endif
+
+  ## PROCESS h5pcc to get linking options ##
+
+  LINK_LIBS = $(shell $(H5PCC) -showconfig | grep "AM_LDFLAGS:" | sed -n -e 's/^.*AM_LDFLAGS: //p')
+  LINK_LIBS += $(shell $(H5PCC) -showconfig | grep "Extra libraries:" | sed -n -e 's/^.*Extra libraries: //p')
+
+  LIBDIR = $(shell if [ -d $$HDF5_DIR/lib ]; then echo "$$HDF5_DIR/lib"; else echo "$$HDF5_DIR/lib64"; fi)
+
+  LIBS += $(LIBDIR)/libhdf5.a $(LINK_LIBS)
   INCLUDE += -I$(HDF5_DIR)/include
   CFLAGS += -DHAS_HDF5
 endif

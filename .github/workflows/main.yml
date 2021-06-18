@@ -59,5 +59,11 @@ jobs:
         cd cartiso
         make
         ./test.sh hdf5 test
+        cd ../struct
+        make
+        ./test.sh
+        cd ../unstruct
+        make
+        ./test.sh
         
       shell: bash

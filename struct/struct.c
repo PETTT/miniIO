@@ -8,6 +8,7 @@
 #include <strings.h>
 #include <math.h>
 #include <mpi.h>
+#include <inttypes.h>
 #include "open-simplex-noise.h"
 #include "timer.h"
 #include "args.h"
@@ -372,7 +373,7 @@ int main(int argc, char **argv)
     printf("struct options:\n");
     printf("      tasks: %d %d\n", inp, jnp);
     printf("      size: %d %d %d\n", ni, nj, nk);
-    printf("      datasize: %llu bytes\n", npoints*4);
+    printf("      datasize: %"PRIu64" bytes\n", npoints*4);
     printf("      maskthreshold: %f\n", mask_thres);
     printf("      noisespacefreqmask: %f %f\n", noisefreqmask_i, noisefreqmask_i);
     printf("      noisespacefreq: %f %f %f\n", noisefreq_i, noisefreq_j, noisefreq_k);
@@ -627,7 +628,7 @@ int main(int argc, char **argv)
 	}
 	else {
 	  printf("WARNING: ola_mask condition not considered for Point_index: (%d,%d,%d)\n"
-		 "Point_id: %llu  Height: %f HeightID: %d  mask_thres_index=%d\n",
+		 "Point_id: %"PRIu64"  Height: %f HeightID: %d  mask_thres_index=%d\n",
 		 x_index, y_index, z_index, point_id+1, height[ii], height_index, mask_thres_index);
 	}
 
@@ -654,7 +655,7 @@ int main(int argc, char **argv)
 	}
 	else {
 	  printf("WARNING: ol_mask condition not considered for Point_index: (%d,%d,%d)\n"
-		 "Point_id: %llu  Height: %f HeightID: %d maskTindex=%d\n",
+		 "Point_id: %"PRIu64"  Height: %f HeightID: %d maskTindex=%d\n",
 		 x_index, y_index, z_index, point_id+1, height[ii], hindex, maskTindex);
 	}
 
@@ -664,7 +665,7 @@ int main(int argc, char **argv)
 	  printf("LDims: (%d,%d,%d)\n", cni, cnj, cnk);
 	  printf("GDims: (%d,%d,%d)\n", ni, nj, nk);
 	  printf("SDims: (%d,%d,%d)\n", is, js, ks);
-	  printf("Point_index: (%d,%d,%d), Point_id:  %llu\n", x_index, y_index, z_index,  point_id+1);
+	  printf("Point_index: (%d,%d,%d), Point_id:  %"PRIu64"\n", x_index, y_index, z_index,  point_id+1);
 	  printf("Point_pos: (%f, %f, %f)  mask_thres_index %d -> %d\n", x, y, z, mask_thres_index, maskTindex);
 	  printf("Height: %f HeightID: %d -> %d ola_mask=%d -> %d\n", height[ii], height_index,  hindex, ola_mask[ii], ol_mask[ii]);
 	}

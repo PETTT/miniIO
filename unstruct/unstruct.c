@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <mpi.h>
+#include <inttypes.h>
 #include "timer.h"
 #include "open-simplex-noise.h"
 
@@ -360,7 +361,7 @@ int main(int argc, char **argv)
     if(rank == 0)
         printf("Actual points: %llu , points per task: %llu\n"
                 "uprocs: %d , vprocs: %d\n"
-                "nu: %d , nv: %d , nlyr: %d\n",
+                "nu: %"PRIu64" , nv: %"PRIu64" , nlyr: %d\n",
                 npoints, nptstask, uprocs, vprocs, nu, nv, nlyr);
 
     /* Divide spherical topology tiles along u,v */
@@ -420,8 +421,8 @@ int main(int argc, char **argv)
     datasize += nptstask*sizeof(float);
 
     if(rank == 0) {
-        printf("nelems2: %llu , nelems3: %llu\n"
-               "data size per task = %llu , all tasks = %llu\n",
+        printf("nelems2: %"PRIu64" , nelems3: %"PRIu64"\n"
+               "data size per task = %"PRIu64" , all tasks = %"PRIu64"\n",
                nelems2, nelems3, datasize, datasize*nprocs);
 #ifdef HAS_HDF5
 	printf("Enable HDF5: ");

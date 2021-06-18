@@ -15,6 +15,12 @@
 
 #define TIMEIO
 
+#ifdef TIMEIO
+extern void timer_tock(double *timer);
+extern void timer_tick(double *timer, MPI_Comm comm, int barrier);
+extern void timer_collectprintstats(double timer, MPI_Comm comm, int destrank, char *prefix);
+#endif
+
 static const int fnstrmax = 4095;
 
 void
@@ -87,7 +93,7 @@ void writehdf5(const int num_varnames, char **varnames, MPI_Comm comm, int rank,
 
 	H5Pset_chunk(chunk_pid, 3, chunk);
 
-	if(!strcasecmp(hdf5_compress, "\0")) {
+	if(strcasecmp(hdf5_compress, "\0") != 0) {
 
           if(!strcasecmp(hdf5_compress, "gzip")) {
 	    /* Set ZLIB / DEFLATE Compression. */

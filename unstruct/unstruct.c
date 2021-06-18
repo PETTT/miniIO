@@ -220,6 +220,7 @@ int main(int argc, char **argv)
     hsize_t *hdf5_chunk=NULL;
     char hdf5_compress[STR_MAX];
     unsigned int compress_par[10];
+    hdf5_compress[0] = '\0';
 #endif
 
     /*## End of Output Module Variables ##*/

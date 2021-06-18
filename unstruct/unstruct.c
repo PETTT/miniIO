@@ -359,7 +359,7 @@ int main(int argc, char **argv)
     nptstask = (uint64_t)nu * nv * nlyr;   /* nptstask won't be exactly as requested */
     npoints = nptstask * nprocs;
     if(rank == 0)
-        printf("Actual points: %"PRIu64" , points per task: "PRIu64"\n"
+        printf("Actual points: %"PRIu64" , points per task: %"PRIu64"\n"
                 "uprocs: %d , vprocs: %d\n"
                 "nu: %d , nv: %d , nlyr: %d\n",
                 npoints, nptstask, uprocs, vprocs, nu, nv, nlyr);

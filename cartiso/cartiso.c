@@ -266,6 +266,7 @@ int main(int argc, char **argv)
     hsize_t *hdf5p_chunk=NULL;
     char hdf5_compress[STR_MAX];
     unsigned int compress_par[10];
+    hdf5_compress[0] = '\0';
 
 #endif
 
@@ -455,11 +456,11 @@ int main(int argc, char **argv)
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 #ifdef HAS_HDF5
-    if( !strcasecmp(hdf5_compress, "\0") && hdf5iout == 1 && hdf5i_chunk == NULL ) {
+    if( strcasecmp(hdf5_compress, "\0") != 0 && hdf5iout == 1 && hdf5i_chunk == NULL ) {
         print_usage(rank, "Error: HDF5 compression requires chunked datasets (--hdf5i_chunk)");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
-    if( !strcasecmp(hdf5_compress, "\0") && hdf5pout == 1 && hdf5p_chunk == NULL ) {
+    if( strcasecmp(hdf5_compress, "\0") != 0 && hdf5pout == 1 && hdf5p_chunk == NULL ) {
         print_usage(rank, "Error: HDF5 compression requires chunked datasets (--hdf5p_chunk)");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }

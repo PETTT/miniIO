@@ -50,7 +50,7 @@ CFLAGS += $(OSNINC)
 .PHONY: clean depend
 
 cartiso: $(OSNOBJ) $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
+	$(CC)  -o $@ $^ $(LDFLAGS) $(LIBS)
 
 clean:
 	rm -f *.o cartiso sfc

@@ -21,7 +21,7 @@ write_xdmf_xml_value(char *fname, char *fname_xdmf, char *varname, float deltax,
 void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs, 
                 int tstep, int ni, int nj, int nk, int is, int ie, int js, int je,
 		int ks, int ke, float deltax, float deltay, float deltaz, int nci, int ncj, int nck, float *data, 
-                hsize_t *h5_chunk, char *hdf5_compress, unsigned int *compress_par)
+                hsize_t *h5_chunk, char *hdf5_compress, size_t cd_nelmts, unsigned int *cd_values)
 {
     char fname[fnstrmax+1];
     char fname_xdmf[fnstrmax+1];
@@ -71,7 +71,7 @@ void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
 
 	  /* Set ZLIB / DEFLATE Compression. */
 
-	  if( H5Pset_deflate (chunk_pid, compress_par[0]) < 0 ) {
+	  if( H5Pset_deflate (chunk_pid, cd_values[0]) < 0 ) {
 	    printf("writehdf5i error: Could not set compression\n");
 	    MPI_Abort(comm, 1);
           }
@@ -79,12 +79,22 @@ void writehdf5i(char *name, char *varname, MPI_Comm comm, int rank, int nprocs,
             
 	  /* SZIP Compression. */
 
-          if( H5Pset_szip (chunk_pid, compress_par[0], compress_par[1]) < 0 ) {
+          if( H5Pset_szip (chunk_pid, cd_values[0], cd_values[1]) < 0 ) {
             printf("writehdf5i error: Could not set compression\n");
             MPI_Abort(comm, 1);
           }
-
         }
+#ifdef H5Z_ZFP_USE_PLUGIN
+        else if(strcmp(hdf5_compress,"zfp") == 0) {
+          H5Z_filter_t filter_id;
+          filter_id = 32013;
+
+          if( H5Pset_filter(chunk_pid, filter_id, H5Z_FLAG_MANDATORY, cd_nelmts, cd_values) < 0 ) {
+            printf("writehdf5i error: Could not set compression\n");
+            MPI_Abort(comm, 1);
+          }
+        }
+#endif
       }
 
       /* Create the dataset with default properties and close filespace. */

@@ -27,6 +27,17 @@
 
 #ifdef HAS_HDF5
 #  include "hdf5unstruct.h"
+
+#  ifdef H5Z_ZFP_USE_PLUGIN
+#     include "H5Zzfp_plugin.h"
+#  endif
+
+
+#define CD_VALUES_MAX 10
+
+    size_t cd_nelmts=CD_VALUES_MAX;
+    unsigned int cd_values[CD_VALUES_MAX];
+
 #endif
 
 /*## End of Output Module Includes ##*/
@@ -66,14 +77,15 @@ void print_usage(int rank, const char *errstr)
 #endif
 #ifdef HAS_HDF5
     fprintf(stderr, "   --hdf5 : Enable HDF5 output.\n"
-                    "   --hdf5_chunk x y z\n"
-                    "      values of chunk size; x, y and z are pointspertask/x, nelems2/y nelms3/z, must be divisible\n"
-                    "      setting x, y and z values to zero disables chunking, respectively\n"
+                    "   --hdf5_chunk x \n"
+                    "      values of chunk size; x are pointspertask/x, must be divisible\n"
+                    "      setting x to zero disables chunking\n"
                     "    --hdf5_compress : enable compression. Valid value is a comma seperated (no spaces) list:  \n"
                     "        <compression type: gzip or szip>,<compression parameter(s) corresponding to HDF5 compression API>  \n"
                     "        gzip,<value is level (see H5Pset_deflate)> \n"
                     "        szip,<value is <options_mask>,<pixels_per_block (see H5Pset_szip)> \n"
-                    "             For example, --hdf5_compress szip,H5_SZIP_NN_OPTION_MASK,8 \n" 
+                    "             For example, --hdf5_compress szip,H5_SZIP_NN_OPTION_MASK,8 \n"
+                    "        zfp,<value is zfpmode,[zfp dependant parameter(s)]> \n"
                     "        NOTE: compression requires chunked datasets \n"
             
 	    );
@@ -214,13 +226,17 @@ int main(int argc, char **argv)
 
 #ifdef HAS_HDF5
 
-#define STR_MAX 64
+#define STR_MAX 128
+#define CD_VALUES_MAX 10
 
     int hdf5out = 0;
     hsize_t *hdf5_chunk=NULL;
     char hdf5_compress[STR_MAX];
-    unsigned int compress_par[10];
     hdf5_compress[0] = '\0';
+
+    int filter_id = 0;
+    size_t cd_nelmts=CD_VALUES_MAX;
+    unsigned int compress_par[CD_VALUES_MAX];
 #endif
 
     /*## End of Output Module Variables ##*/
@@ -271,10 +287,8 @@ int main(int argc, char **argv)
             hdf5out = 1;
         }
         else if(!strcasecmp(argv[a], "--hdf5_chunk")) {
-	  hdf5_chunk = malloc(3 * sizeof(hsize_t));
+	  hdf5_chunk = malloc(1 * sizeof(hsize_t));
 	  hdf5_chunk[0] = (hsize_t)strtoul(argv[++a], NULL, 0);
-	  hdf5_chunk[1] = (hsize_t)strtoul(argv[++a], NULL, 0);
-	  hdf5_chunk[2] = (hsize_t)strtoul(argv[++a], NULL, 0);
         }
 	else if(!strcasecmp(argv[a], "--hdf5_compress")) {
           char tmp[STR_MAX];
@@ -288,27 +302,103 @@ int main(int argc, char **argv)
             while (pch != NULL) {
               if(icnt == 0) {
                 if ( strcmp(pch,"H5_SZIP_EC_OPTION_MASK") == 0 ) {
-                  compress_par[icnt] = H5_SZIP_EC_OPTION_MASK;
+                  cd_values[icnt] = H5_SZIP_EC_OPTION_MASK;
                 } else if ( strcmp(pch,"H5_SZIP_NN_OPTION_MASK") == 0 ) {
-                  compress_par[icnt] = H5_SZIP_NN_OPTION_MASK;
+                  cd_values[icnt] = H5_SZIP_NN_OPTION_MASK;
                 } else {
                   if(rank == 0) fprintf(stderr, "szip option not recognized: %s\n\n",pch);
                   MPI_Abort(MPI_COMM_WORLD, 1);
                 }
               } else if(icnt == 1) {
-                compress_par[icnt] = (unsigned int)strtoul(pch, NULL, 0);
+                cd_values[icnt] = (unsigned int)strtoul(pch, NULL, 0);
                 /* pixels_per_block and must be even and not greater than 32 */
-                if(compress_par[icnt] % 2 != 0 || compress_par[icnt] > 32 || compress_par[icnt] < 2 ) {
-                  if(rank == 0) fprintf(stderr, "szip pixels_per_block and must be even and not greater than 32: %d\n\n",compress_par[icnt]);
+                if(cd_values[icnt] % 2 != 0 || cd_values[icnt] > 32 || cd_values[icnt] < 2 ) {
+                  if(rank == 0) fprintf(stderr, "szip pixels_per_block and must be even and not greater than 32: %d\n\n",cd_values[icnt]);
                   MPI_Abort(MPI_COMM_WORLD, 1);
                 }
               }
               pch = strtok (NULL, " ,");
               icnt++;
             }
+            filter_id = H5Z_FILTER_SZIP;
+            cd_nelmts = 2;
           } else if ( strcmp(hdf5_compress,"gzip") == 0 ) {
-            compress_par[0] = (unsigned int)strtoul(pch, NULL, 0);
+            filter_id = H5Z_FILTER_DEFLATE;
+            cd_nelmts = 1;
+            cd_values[0] = (unsigned int)strtoul(pch, NULL, 0);
           }
+#ifdef H5Z_ZFP_USE_PLUGIN
+          else if ( strcmp(hdf5_compress,"zfp") == 0 ) {
+
+            filter_id = H5Z_FILTER_ZFP;
+
+            /* setup zfp filter via generic (cd_values) interface */
+            /*
+              cd_vals    0       1        2         3         4         5
+              ----------------------------------------------------------------
+              rate:      1    unused    rateA     rateB     unused    unused
+              precision: 2    unused    prec      unused    unused    unused
+              accuracy:  3    unused    accA      accB      unused    unused
+              expert:    4    unused    minbits   maxbits   maxprec   minexp
+              reversubke 5    unused    unused    unused    unused    unused
+            */
+
+            int zfpmode=0;
+
+            if (strcmp(pch,"H5Z_ZFP_MODE_RATE") == 0 ) {
+              zfpmode = 1;
+            } else if (strcmp(pch,"H5Z_ZFP_MODE_PRECISION") == 0 ) {
+              zfpmode = 2;
+            } else if (strcmp(pch,"H5Z_ZFP_MODE_ACCURACY") == 0 ) {
+              zfpmode = 3;
+            } else if (strcmp(pch,"H5Z_ZFP_MODE_EXPERT") == 0 ) {
+              zfpmode = 4;
+            } else if (strcmp(pch,"H5Z_ZFP_MODE_REVERSIBLE") == 0 ) {
+              zfpmode = 5;
+            }
+
+            pch = strtok (NULL, " ,");
+
+            if (zfpmode == H5Z_ZFP_MODE_RATE) {
+              double rate = (double)strtoul(pch, NULL, 0);
+              H5Pset_zfp_rate_cdata(rate, cd_nelmts, cd_values);
+            } else if (zfpmode == H5Z_ZFP_MODE_PRECISION) {
+              uint prec = (uint)strtoul(pch, NULL, 0);
+              H5Pset_zfp_precision_cdata(prec, cd_nelmts, cd_values);
+            } else if (zfpmode == H5Z_ZFP_MODE_ACCURACY) {
+              double acc = (double)strtoul(pch, NULL, 0);
+              H5Pset_zfp_accuracy_cdata(acc, cd_nelmts, cd_values);
+            } else if (zfpmode == H5Z_ZFP_MODE_EXPERT) {
+              uint minbits = (uint)strtoul(pch, NULL, 0);
+              pch = strtok (NULL, " ,");
+              uint maxbits = (uint)strtoul(pch, NULL, 0);
+              pch = strtok (NULL, " ,");
+              uint maxprec = (uint)strtoul(pch, NULL, 0);
+              pch = strtok (NULL, " ,");
+              int minexp = (int)strtoul(pch, NULL, 0);
+              H5Pset_zfp_expert_cdata(minbits, maxbits, maxprec, minexp, cd_nelmts, cd_values);
+            } else if (zfpmode == H5Z_ZFP_MODE_REVERSIBLE) {
+              H5Pset_zfp_reversible_cdata(cd_nelmts, cd_values);
+            } else {
+              cd_nelmts = 0; /* causes default behavior of ZFP library */
+            }
+            if(rank == 0) {
+              printf("%d cd_values= ",cd_nelmts);
+              for (int i = 0; i < cd_nelmts; i++)
+                printf("%u,", cd_values[i]);
+              printf("\n");
+            }
+          }
+
+          if(filter_id != 0) {
+            /* Check if filter is available */
+            htri_t avail = H5Zfilter_avail(filter_id);
+            if (avail <= 0) {
+              printf("error: %s compression is not available\n", hdf5_compress);
+              MPI_Abort(MPI_COMM_WORLD, 1);
+            }
+          }
+#endif
 	}
 #endif
 
@@ -433,11 +523,11 @@ int main(int argc, char **argv)
 	  printf("no\n");
 
 	if(hdf5_chunk)
-	  printf("Enable HDF5 chunking: %lld %lld %lld \n", hdf5_chunk[0], hdf5_chunk[1], hdf5_chunk[2]);
+	  printf("Enable HDF5 chunking: %lld \n", hdf5_chunk[0]);
 	
 	printf("Enable HDF5 compression: ");
 	if(strcasecmp(hdf5_compress, "\0") != 0)
-	  printf("yes\n");
+	  printf("yes, %s\n", hdf5_compress);
 	else
 	  printf("no\n");
 #endif
@@ -521,7 +611,7 @@ int main(int argc, char **argv)
                 printf("   Writing hdf5...\n");   fflush(stdout);
             }
             writehdf5("unstruct", MPI_COMM_WORLD, t, npoints, nptstask, xpts, ypts, zpts,
-                      nelems3, conns3, nelems2, conns2, "noise", data, hdf5_chunk, hdf5_compress, compress_par);
+                      nelems3, conns3, nelems2, conns2, "noise", data, hdf5_chunk, filter_id, cd_nelmts, cd_values);
 
 
         }
